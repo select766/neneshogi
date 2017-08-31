@@ -1,0 +1,2 @@
+# neneshogi
+NEural NEtwork Shogi
