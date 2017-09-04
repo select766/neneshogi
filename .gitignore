@@ -99,3 +99,9 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# pycharm
+.idea/misc.xml
+.idea/modules.xml
+.idea/neneshogi_private.iml
+.idea/workspace.xml
