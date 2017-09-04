@@ -511,6 +511,15 @@ class Position:
             if self._in_check_black():
                 # 後手番になっているのに先手が王手をかけられている
                 legal = False
+            # 打ち歩詰めチェック
+            if legal and move.is_drop and move.move_dropped_piece == Piece.PAWN:
+                # 王手放置のときにチェックすると、玉を取る手が生成されてバグる
+                # 現在の手番(後手)が詰んでいるとき、打ち歩詰め
+                # 玉の頭に打った時だけ判定すればよい
+                white_king_check_pos = move.move_to - 1  # 1段目に打つ手は生成しないので、必ず盤内
+                if self.board[white_king_check_pos] == Piece.W_KING:
+                    if len(self.generate_move_list()) == 0:
+                        legal = False
             self.undo_move(undo_info)
             if legal:
                 legal_moves.append(move)
@@ -571,7 +580,7 @@ class Position:
         """
         盤上の駒を動かす手をすべて生成する。
         先手番を前提とする。
-        ただし、歩の不成りおよび行き場のない駒を生じる手は除く。
+        ただし、香車の2段目・歩・角・飛の不成りおよび行き場のない駒を生じる手は除く。
         :return:
         """
         possible_moves = []
@@ -598,7 +607,7 @@ class Position:
                     # 自分の駒があるところには進めない
                     if not Piece.is_color(to_piece, Color.BLACK):
                         if to_rank >= max_non_promote_rank:
-                            # 行き場のない駒にはならない(&歩のならずではない)
+                            # 行き場のない駒にはならない(&無意味な不成ではない)
                             possible_moves.append(Move.make_move(from_sq, to_sq, False))
                         if can_promote and (from_rank < 3 or to_rank < 3):
                             # 成れる駒で、成る条件を満たす
