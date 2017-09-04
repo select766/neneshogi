@@ -766,6 +766,18 @@ class Position:
         [Piece.W_BISHOP, Piece.W_HORSE],  # 右下
     ]
 
+    def in_check(self) -> bool:
+        """
+        手番側が王手されている状態かどうかをチェックする。
+        :return:
+        """
+        if self.side_to_move == Color.BLACK:
+            return self._in_check_black()
+        else:
+            # 後手番の場合は盤面を回転
+            rot_pos = self._rotate_position()
+            return rot_pos._in_check_black()
+
     def _in_check_black(self) -> bool:
         """
         先手が王手された状態かどうかをチェックする。

@@ -46,6 +46,8 @@ class TestPosition(unittest.TestCase):
                             f"Case {case['serial']}")
             self.assertTrue(np.all(self.pos.hand == np.array(case["hand_of"], dtype=np.uint8)),
                             f"Case {case['serial']}")
+            self.assertTrue(self.pos.in_check() == case["in_check"],
+                            f"Case {case['serial']}")
             self.assertEqual(self.pos.get_sfen(), case["sfen"], f"Case {case['serial']}")
 
     def test_move_generation(self):
@@ -65,11 +67,14 @@ class TestPosition(unittest.TestCase):
         Positionコマンドの初期局面が"startpos"ではなくsfenの場合の局面再生テスト
         :return:
         """
-        self.pos.set_usi_position("position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15 moves")
+        self.pos.set_usi_position(
+            "position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15 moves")
         self.assertEqual(self.pos.get_sfen(), "lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15")
-        self.pos.set_usi_position("position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15 moves 3h3g")
+        self.pos.set_usi_position(
+            "position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15 moves 3h3g")
         self.assertEqual(self.pos.get_sfen(), "lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PPSPP/1B1R3K1/LNSG1G1NL w Pp 16")
-        self.pos.set_usi_position("position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15 moves 3h3g P*3f")
+        self.pos.set_usi_position(
+            "position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15 moves 3h3g P*3f")
         self.assertEqual(self.pos.get_sfen(), "lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP2p2/PP2PPSPP/1B1R3K1/LNSG1G1NL b P 17")
 
     def test_sfen_set_get(self):
@@ -83,5 +88,7 @@ class TestPosition(unittest.TestCase):
             self.assertTrue(np.all(self.pos.board == np.array(case["piece_on"], dtype=np.uint8)),
                             f"Case {case['serial']}")
             self.assertTrue(np.all(self.pos.hand == np.array(case["hand_of"], dtype=np.uint8)),
+                            f"Case {case['serial']}")
+            self.assertTrue(self.pos.in_check() == case["in_check"],
                             f"Case {case['serial']}")
             self.assertEqual(self.pos.get_sfen(), case["sfen"], f"Case {case['serial']}")
