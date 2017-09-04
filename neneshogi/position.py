@@ -323,7 +323,48 @@ class Position:
         :param sfen:
         :return:
         """
-        raise NotImplementedError
+        board_str, color_str, hand_str, ply_str = sfen.split()
+        board_ranks = board_str.split("/")
+        for rank, rank_line in enumerate(board_ranks):
+            file_from_left = 0
+            is_promote = False
+            for token in rank_line:
+                if token == "+":
+                    is_promote = True
+                    continue
+                if token.isnumeric():
+                    # 数値の指す数だけ空のマス
+                    for _ in range(int(token)):
+                        sq = Square.from_file_rank(8 - file_from_left, rank)
+                        self.board[sq] = Piece.NO_PIECE
+                        file_from_left += 1
+                else:
+                    # 駒
+                    piece = Piece.piece_from_char(token)
+                    if is_promote:
+                        piece += Piece.PIECE_PROMOTE
+                    sq = Square.from_file_rank(8 - file_from_left, rank)
+                    self.board[sq] = piece
+                    file_from_left += 1
+                is_promote = False
+            assert file_from_left == 9
+
+        self.hand[:] = 0
+        if hand_str != "-":
+            num_piece_str = ""
+            for token in hand_str:
+                if token.isnumeric():
+                    # 駒の数が10以上のときがあるので注意
+                    num_piece_str += token
+                else:
+                    piece = Piece.piece_from_char(token)
+                    piece_color = Color.WHITE if Piece.is_color(piece, Color.WHITE) else Color.BLACK
+                    num_piece = int(num_piece_str) if len(num_piece_str) > 0 else 1
+                    self.hand[piece_color, Piece.raw_pt_from_piece(piece) - Piece.PIECE_HAND_ZERO] = num_piece
+                    num_piece_str = ""
+
+        self.side_to_move = Color.WHITE if color_str == "w" else Color.BLACK
+        self.game_ply = int(ply_str)
 
     def get_sfen(self) -> str:
         """
@@ -385,10 +426,18 @@ class Position:
         """
         items = position_command.rstrip().split()
         assert items[0] == "position"
-        assert items[1] == "startpos"  # TODO: SFENも受け入れたい
-        self.set_hirate()
-        assert items[2] == "moves"
-        for move_str in items[3:]:
+        if items[1] == "startpos":
+            self.set_hirate()
+            assert items[2] == "moves"
+            move_strs = items[3:]
+        elif items[1] == "sfen":
+            # position sfen lnsg... b - 3 moves 7g7f ...
+            self.set_sfen(" ".join(items[2:6]))
+            assert items[6] == "moves"
+            move_strs = items[7:]
+        else:
+            raise NotImplementedError
+        for move_str in move_strs:
             move = Move.from_usi_string(move_str)
             self.do_move(move)
 

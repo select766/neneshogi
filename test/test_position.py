@@ -59,3 +59,29 @@ class TestPosition(unittest.TestCase):
             legal_moves = self.pos.generate_move_list()
             legal_moves_str = [m.to_usi_string() for m in legal_moves]
             self.assertSetEqual(set(legal_moves_str), set(case["legal_moves"]), f"Case {case['serial']}")
+
+    def test_position_command_sfen(self):
+        """
+        Positionコマンドの初期局面が"startpos"ではなくsfenの場合の局面再生テスト
+        :return:
+        """
+        self.pos.set_usi_position("position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15 moves")
+        self.assertEqual(self.pos.get_sfen(), "lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15")
+        self.pos.set_usi_position("position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15 moves 3h3g")
+        self.assertEqual(self.pos.get_sfen(), "lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PPSPP/1B1R3K1/LNSG1G1NL w Pp 16")
+        self.pos.set_usi_position("position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15 moves 3h3g P*3f")
+        self.assertEqual(self.pos.get_sfen(), "lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP2p2/PP2PPSPP/1B1R3K1/LNSG1G1NL b P 17")
+
+    def test_sfen_set_get(self):
+        """
+        SFENでの局面設定が正しいかテスト
+        :return:
+        """
+        for case in self.dataset:
+            self.pos.set_sfen(case["sfen"])
+            self.assertEqual(self.pos.side_to_move, case["side_to_move"], f"Case {case['serial']}")
+            self.assertTrue(np.all(self.pos.board == np.array(case["piece_on"], dtype=np.uint8)),
+                            f"Case {case['serial']}")
+            self.assertTrue(np.all(self.pos.hand == np.array(case["hand_of"], dtype=np.uint8)),
+                            f"Case {case['serial']}")
+            self.assertEqual(self.pos.get_sfen(), case["sfen"], f"Case {case['serial']}")
