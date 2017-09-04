@@ -88,28 +88,23 @@ class Piece:
     PIECE_WHITE = 16
     PIECE_RAW_NB = 8
     PIECE_HAND_ZERO = PAWN  # 手駒の駒種最小値
-    PIECE_HAND_NB = KING  # 手駒の駒種最小値+1
+    PIECE_HAND_NB = KING  # 手駒の駒種最大値+1
 
     PIECE_FROM_CHAR_TABLE = {"P": B_PAWN, "L": B_LANCE, "N": B_KNIGHT, "S": B_SILVER,
                              "B": B_BISHOP, "R": B_ROOK, "G": B_GOLD, "K": B_KING,
+                             "+P": B_PRO_PAWN, "+L": B_PRO_LANCE, "+N": B_PRO_KNIGHT, "+S": B_PRO_SILVER,
+                             "+B": B_HORSE, "+R": B_DRAGON,
                              "p": W_PAWN, "l": W_LANCE, "n": W_KNIGHT, "s": W_SILVER,
-                             "b": W_BISHOP, "r": W_ROOK, "g": W_GOLD, "k": W_KING}
-    CHAR_FROM_PIECE_TABLE = " PLNSBRGKPLNSBR  plnsbrgkplnsbr "
-
-    @staticmethod
-    def pt_from_char(c: str) -> int:
-        """
-        駒種(大文字)から定数を計算
-        :param c:
-        :return:
-        """
-        # 先手の駒と駒種は定数が同じ
-        return Piece.PIECE_FROM_CHAR_TABLE[c]
+                             "b": W_BISHOP, "r": W_ROOK, "g": W_GOLD, "k": W_KING,
+                             "+p": W_PRO_PAWN, "+l": W_PRO_LANCE, "+n": W_PRO_KNIGHT, "+s": W_PRO_SILVER,
+                             "+b": W_HORSE, "+r": W_DRAGON, }
+    CHAR_FROM_PIECE_TABLE = {v: k for k, v in PIECE_FROM_CHAR_TABLE.items()}
 
     @staticmethod
     def piece_from_char(c: str) -> int:
         """
         駒の文字から定数を計算、先手が大文字、後手が小文字
+        成り駒も考慮
         :param c:
         :return:
         """
@@ -119,10 +114,23 @@ class Piece:
     def char_from_piece(piece: int) -> str:
         """
         駒に対応する文字を返す、入力は駒種でも可(大文字が返る)
+        成り駒も考慮し、"+"が先頭に付加される
         :param piece:
         :return:
         """
         return Piece.CHAR_FROM_PIECE_TABLE[piece]
+
+    @staticmethod
+    def raw_pt_from_piece(piece: int) -> int:
+        """
+        駒から、成る前の駒種を計算
+        :param piece:
+        :return:
+        """
+        raw_pt = piece % Piece.PIECE_RAW_NB
+        if raw_pt == 0:
+            raw_pt = Piece.KING
+        return raw_pt
 
 
 class Square:
@@ -194,7 +202,7 @@ class Move:
         from_file = ord(move_usi[0]) - ord("1")
         if from_file > 8:
             # 駒打ち("G*5b")
-            drop_pt = Piece.pt_from_char(move_usi[0])
+            drop_pt = Piece.piece_from_char(move_usi[0])
             return Move.make_move_drop(drop_pt, Square.from_file_rank(to_file, to_rank))
         else:
             from_rank = ord(move_usi[1]) - ord("a")
@@ -280,13 +288,59 @@ class Position:
         :param sfen:
         :return:
         """
+        raise NotImplementedError
 
     def get_sfen(self) -> str:
         """
         SFEN形式で局面を表現する
         :return:
         """
-        return ""
+
+        # 盤面
+        # SFENは段ごとに、左から右に走査する
+        sfen = ""
+        for y in range(9):
+            if y > 0:
+                sfen += "/"
+            blank_len = 0
+            for x in range(9):
+                sq = (8 - x) * 9 + y
+                piece = self.board[sq]
+                if piece != Piece.PIECE_ZERO:
+                    if blank_len > 0:
+                        sfen += str(blank_len)
+                        blank_len = 0
+                    sfen += Piece.char_from_piece(piece)
+                else:
+                    blank_len += 1
+            if blank_len > 0:
+                sfen += str(blank_len)
+
+        # 手番
+        if self.side_to_move == Color.BLACK:
+            sfen += " b "
+        else:
+            sfen += " w "
+
+        # 持ち駒
+        # 同じ局面・手数の時にSFENを完全一致させるため、飛、角、金、銀、桂、香、歩の順とする
+        hand_pieces = ""
+        for color in range(Color.COLOR_NB):
+            hand_for_color = self.hand[color]
+            piece_color_offset = color * Piece.PIECE_WHITE
+            for pt in [Piece.ROOK, Piece.BISHOP, Piece.GOLD, Piece.SILVER, Piece.KNIGHT, Piece.LANCE, Piece.PAWN]:
+                piece_ct = hand_for_color[pt - Piece.PIECE_HAND_ZERO]
+                if piece_ct > 0:
+                    if piece_ct > 1:
+                        hand_pieces += str(piece_ct)
+                    hand_pieces += Piece.char_from_piece(pt + piece_color_offset)
+        if len(hand_pieces) == 0:
+            hand_pieces = "-"
+        sfen += hand_pieces
+
+        # 手数
+        sfen += " " + str(self.game_ply)
+        return sfen
 
     def set_usi_position(self, position_command: str):
         """
@@ -297,6 +351,7 @@ class Position:
         items = position_command.rstrip().split()
         assert items[0] == "position"
         assert items[1] == "startpos"  # TODO: SFENも受け入れたい
+        self.set_hirate()
         assert items[2] == "moves"
         for move_str in items[3:]:
             move = Move.from_usi_string(move_str)
@@ -308,6 +363,32 @@ class Position:
         :param move:
         :return: 局面を戻すために必要な情報
         """
+        if move.is_drop:
+            # 駒打ち
+            # 持ち駒を減らす
+            self.hand[self.side_to_move, move.move_dropped_piece - Piece.PIECE_HAND_ZERO] -= 1
+            # 駒を置く
+            piece = move.move_dropped_piece
+            if self.side_to_move == Color.WHITE:
+                piece += Piece.PIECE_WHITE  # move_dropped_pieceは駒種
+            self.board[move.move_to] = piece
+        else:
+            # 駒の移動
+            piece = self.board[move.move_from]
+            captured_piece = self.board[move.move_to]
+            if captured_piece != Piece.PIECE_ZERO:
+                # 持ち駒を増やす
+                self.hand[self.side_to_move, Piece.raw_pt_from_piece(captured_piece) - Piece.PIECE_HAND_ZERO] += 1
+            self.board[move.move_from] = Piece.PIECE_ZERO
+            if move.is_promote:
+                piece += Piece.PIECE_PROMOTE
+            self.board[move.move_to] = piece
+
+        # 手番を逆転
+        self.side_to_move = Color.invert(self.side_to_move)
+
+        # 手数を加算
+        self.game_ply += 1
         return UndoMoveInfo()
 
     def undo_move(self, undo_move_info: UndoMoveInfo) -> None:
@@ -316,7 +397,7 @@ class Position:
         :param undo_move_info:
         :return:
         """
-        pass
+        raise NotImplementedError
 
     def eq_board(self, other: "Position") -> bool:
         """

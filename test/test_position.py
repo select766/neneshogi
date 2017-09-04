@@ -17,8 +17,10 @@ from typing import List
 
 import pickle
 
+import numpy as np
 from neneshogi import config
 from neneshogi.position import Position
+
 
 class TestPosition(unittest.TestCase):
     pos: Position
@@ -31,9 +33,14 @@ class TestPosition(unittest.TestCase):
 
     def test_position_command(self):
         """
-        Positionコマンドで設定した盤面と、SFENを比較する
+        Positionコマンドで設定した盤面と、駒配置およびSFENを比較する
         :return:
         """
         for case in self.dataset:
             self.pos.set_usi_position(case["position_command"])
+            self.assertEqual(self.pos.side_to_move, case["side_to_move"], f"Case {case['serial']}")
+            self.assertTrue(np.all(self.pos.board == np.array(case["piece_on"], dtype=np.uint8)),
+                            f"Case {case['serial']}")
+            self.assertTrue(np.all(self.pos.hand == np.array(case["hand_of"], dtype=np.uint8)),
+                            f"Case {case['serial']}")
             self.assertEqual(self.pos.get_sfen(), case["sfen"], f"Case {case['serial']}")
