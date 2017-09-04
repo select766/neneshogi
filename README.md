@@ -15,3 +15,8 @@ python setup.py develop
 ```
 python -m neneshogi.generate_position_testcase data\testcase\generate_position_testcase_kifu.txt
 ```
+
+## テスト実行
+```
+python -m unittest
+```
