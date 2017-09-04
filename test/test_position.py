@@ -55,9 +55,6 @@ class TestPosition(unittest.TestCase):
         :return:
         """
         for case in self.dataset:
-            if case["side_to_move"] != 0:
-                # TODO: 後手番でもチェック
-                continue
             self.pos.set_usi_position(case["position_command"])
             legal_moves = self.pos.generate_move_list()
             legal_moves_str = [m.to_usi_string() for m in legal_moves]

@@ -459,9 +459,41 @@ class Position:
         :return:
         """
 
-        # TODO: 後手番の場合は盤面を回転
-        assert self.side_to_move == Color.BLACK
-        return self._generate_move_list_black()
+        if self.side_to_move == Color.BLACK:
+            return self._generate_move_list_black()
+        else:
+            # 後手番の場合は盤面を回転
+            rot_pos = self._rotate_position()
+            rot_move_list = rot_pos._generate_move_list_black()
+            move_list = []
+            for rot_move in rot_move_list:
+                to_sq = Square.SQ_NB - 1 - rot_move.move_to
+                if rot_move.is_drop:
+                    move = Move.make_move_drop(rot_move.move_dropped_piece, to_sq)
+                else:
+                    from_sq = Square.SQ_NB - 1 - rot_move.move_from
+                    move = Move.make_move(from_sq, to_sq, rot_move.is_promote)
+                move_list.append(move)
+            return move_list
+
+    def _rotate_position(self) -> "Position":
+        """
+        逆の手番から見た盤面を生成する。
+        盤面・持ち駒・手番を反転したインスタンスを生成。
+        :return:
+        """
+        rot = Position()
+        for sq in range(Square.SQ_NB):
+            piece = self.board[Square.SQ_NB - 1 - sq]  # 180°回して駒を取得
+            # 駒の手番を逆転
+            if piece >= Piece.W_PAWN:
+                piece -= Piece.PIECE_WHITE
+            elif piece >= Piece.B_PAWN:
+                piece += Piece.PIECE_WHITE
+            rot.board[sq] = piece
+        rot.hand[:] = self.hand[::-1, :]
+        rot.side_to_move = Color.invert(self.side_to_move)
+        return rot
 
     def _generate_move_list_black(self) -> List[Move]:
         """
