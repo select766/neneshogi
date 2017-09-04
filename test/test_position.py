@@ -1,6 +1,9 @@
 """
 盤面表現・合法手生成のテスト
 
+合法手生成のテストのみ:
+python -m unittest test.test_position.TestPosition.test_move_generation
+
 Test case:
   side_to_move: 1
   piece_on: [18,0,17,0,0,0,1,0,2,19,21,17,0,0,0,1,0,3,20,0,17,0,0,0,1,0,4,23,0,17,0,0,0,1,0,7,24,0,17,0,0,0,1,0,8,23,0,17,0,0,0,1,6,7,20,0,17,0,0,0,1,0,4,19,22,17,0,0,0,1,5,3,18,0,17,0,0,0,1,0,2,]
@@ -44,3 +47,18 @@ class TestPosition(unittest.TestCase):
             self.assertTrue(np.all(self.pos.hand == np.array(case["hand_of"], dtype=np.uint8)),
                             f"Case {case['serial']}")
             self.assertEqual(self.pos.get_sfen(), case["sfen"], f"Case {case['serial']}")
+
+    def test_move_generation(self):
+        """
+        合法手生成のテスト
+        現状、先手番のときだけ行う
+        :return:
+        """
+        for case in self.dataset:
+            if case["side_to_move"] != 0:
+                # TODO: 後手番でもチェック
+                continue
+            self.pos.set_usi_position(case["position_command"])
+            legal_moves = self.pos.generate_move_list()
+            legal_moves_str = [m.to_usi_string() for m in legal_moves]
+            self.assertSetEqual(set(legal_moves_str), set(case["legal_moves"]), f"Case {case['serial']}")
