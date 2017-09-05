@@ -425,21 +425,22 @@ class Position:
         :return:
         """
         items = position_command.rstrip().split()
-        assert items[0] == "position"
-        if items[1] == "startpos":
+        assert items.pop(0) == "position"
+        if items[0] == "startpos":
+            items.pop(0)
             self.set_hirate()
-            assert items[2] == "moves"
-            move_strs = items[3:]
-        elif items[1] == "sfen":
+        elif items[0] == "sfen":
+            items.pop(0)
             # position sfen lnsg... b - 3 moves 7g7f ...
-            self.set_sfen(" ".join(items[2:6]))
-            assert items[6] == "moves"
-            move_strs = items[7:]
+            self.set_sfen(" ".join(items[:4]))
+            del items[:4]
         else:
             raise NotImplementedError
-        for move_str in move_strs:
-            move = Move.from_usi_string(move_str)
-            self.do_move(move)
+        if len(items) > 0:  # 将棋所で初形だと"position startpos"で終わり
+            assert items.pop(0) == "moves"
+            for move_str in items:
+                move = Move.from_usi_string(move_str)
+                self.do_move(move)
 
     def do_move(self, move: Move) -> UndoMoveInfo:
         """

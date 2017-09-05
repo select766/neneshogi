@@ -39,6 +39,8 @@ class TestPosition(unittest.TestCase):
         Positionコマンドで設定した盤面と、駒配置およびSFENを比較する
         :return:
         """
+        self.pos.set_usi_position("position startpos")
+        self.assertEqual(self.pos.get_sfen(), "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1")
         for case in self.dataset:
             self.pos.set_usi_position(case["position_command"])
             self.assertEqual(self.pos.side_to_move, case["side_to_move"], f"Case {case['serial']}")
@@ -68,7 +70,7 @@ class TestPosition(unittest.TestCase):
         :return:
         """
         self.pos.set_usi_position(
-            "position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15 moves")
+            "position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15")
         self.assertEqual(self.pos.get_sfen(), "lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15")
         self.pos.set_usi_position(
             "position sfen lnsg2snl/3kg1rb1/pppppp1pp/9/9/2PP5/PP2PP+pPP/1B1R2SK1/LNSG1G1NL b p 15 moves 3h3g")
