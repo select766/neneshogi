@@ -8,6 +8,8 @@ from typing import Iterable, Dict, List
 
 from .engine import Engine
 
+from logging import getLogger
+logger = getLogger(__name__)
 
 class Usi:
     engine: Engine
@@ -24,6 +26,7 @@ class Usi:
         """
         for recv_line in sys.stdin:
             recv_line_nonl = recv_line.rstrip()
+            logger.info(f"USI< {recv_line_nonl}")
             tokens = recv_line_nonl.split(" ")  # type: List[str]
             if len(tokens) == 0:
                 continue
@@ -52,7 +55,7 @@ class Usi:
                     if go_option_name in ["btime", "wtime", "byoyomi", "binc", "winc"]:
                         go_option_dict[go_option_name] = int(tokens.pop(0))
                     else:
-                        raise NotImplementedError(f"Unknown go option f{go_option_name}")
+                        raise NotImplementedError(f"Unknown go option {go_option_name}")
                 bestmove = self.engine.go(**go_option_dict)
                 resp_lines.append(f"bestmove {bestmove}")
             elif cmd == "gameover":
@@ -62,11 +65,12 @@ class Usi:
                 self.engine.quit()
                 break
             else:
-                raise NotImplementedError(f"Unknown usi command f{cmd}")
+                raise NotImplementedError(f"Unknown usi command {cmd}")
             if len(resp_lines) > 0:
                 self._put_lines(resp_lines)
 
     def _put_lines(self, lines: Iterable[str]) -> None:
         for line in lines:
+            logger.info(f"USI> {line}")
             sys.stdout.write(line + "\n")
         sys.stdout.flush()

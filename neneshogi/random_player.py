@@ -43,6 +43,13 @@ class RandomPlayer(Engine):
 
 
 if __name__ == "__main__":
-    engine = RandomPlayer()
-    usi = Usi(engine)
-    usi.run()
+    import logging
+    logger = logging.getLogger("random_player")
+    try:
+        engine = RandomPlayer()
+        logger.debug("Start USI")
+        usi = Usi(engine)
+        usi.run()
+        logger.debug("Quit USI")
+    except Exception as ex:
+        logger.exception("Unhandled error %s", ex)
