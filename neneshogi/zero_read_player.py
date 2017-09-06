@@ -6,11 +6,13 @@ from typing import Dict, Optional, List
 
 import numpy as np
 import chainer
+import sys
 
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
 from .usi import Usi
 from .net import Model
+
 
 class ZeroReadPlayer(Engine):
     pos: Position
@@ -62,7 +64,7 @@ class ZeroReadPlayer(Engine):
                 ary[ch, sq] = 1.0
         # 持ち駒
         for color in range(Color.COLOR_NB):
-            for i in range(Piece.PIECE_HAND_NB-Piece.PIECE_HAND_ZERO):
+            for i in range(Piece.PIECE_HAND_NB - Piece.PIECE_HAND_ZERO):
                 hand_count = pos_from_side.hand[color][i]
                 ch = color * 7 + 28 + i
                 ary[ch, :] = hand_count
@@ -121,8 +123,12 @@ class ZeroReadPlayer(Engine):
         :return:
         """
         dnn_input = self._make_dnn_input()
-        model_output_var = self.model(dnn_input)
-        model_output = model_output_var.data  # type: np.ndarray
+        with chainer.using_config("train", False):
+            model_output_var = self.model(dnn_input)
+            model_output = model_output_var.data  # type: np.ndarray
+        # 表示上、softmaxをかけて確率にしておく
+        mo_exp = np.exp(model_output)
+        model_output = mo_exp / np.sum(mo_exp)
         if self.pos.side_to_move == Color.BLACK:
             rot_move_list = move_list
         else:
@@ -137,13 +143,15 @@ class ZeroReadPlayer(Engine):
                 rot_move_list.append(move)
         # 各合法手のスコアを計算し最大値をとる
         max_move = None
-        max_score = -100.0
+        max_score = -1.0
         for move, rot_move in zip(move_list, rot_move_list):
             ary_index = self._get_move_index(rot_move)
             score = model_output[ary_index]
             if score > max_score:
                 max_score = score
                 max_move = move
+        # TODO: 読み筋を出力する機能をUSI側に移動
+        sys.stdout.write(f"info string {max_move.to_usi_string()}({int(max_score*100)}%)\n")
         return max_move
 
     def go(self, btime: Optional[int] = None, wtime: Optional[int] = None,
@@ -158,6 +166,7 @@ class ZeroReadPlayer(Engine):
 
 if __name__ == "__main__":
     import logging
+
     logger = logging.getLogger("zero_read_player")
     try:
         engine = ZeroReadPlayer("data/dnn/snapshot")
