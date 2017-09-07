@@ -19,7 +19,7 @@ class ZeroReadPlayer(Engine):
 
     def __init__(self, model_path):
         self.pos = Position()
-        self.model = Model(ch=128, depth=8)
+        self.model = Model(ch=128, depth=4)
         chainer.serializers.load_npz(model_path, self.model)
 
     @property
@@ -42,7 +42,7 @@ class ZeroReadPlayer(Engine):
     def _make_dnn_input(self):
         """
         現在のPositionからDNNへの入力行列を生成する。
-        1*42ch*9*9
+        1*61ch*9*9
         DNN入出力の形式は@not522による以下を参考にした。
         https://github.com/not522/CNNShogi
         :return:
@@ -51,7 +51,7 @@ class ZeroReadPlayer(Engine):
         pos_from_side = self.pos
         if pos_from_side.side_to_move == Color.WHITE:
             pos_from_side = pos_from_side._rotate_position()
-        ary = np.zeros((42, 81), dtype=np.float32)
+        ary = np.zeros((61, 81), dtype=np.float32)
         # 盤上の駒
         for sq in range(Square.SQ_NB):
             piece = pos_from_side.board[sq]
@@ -68,7 +68,13 @@ class ZeroReadPlayer(Engine):
                 hand_count = pos_from_side.hand[color][i]
                 ch = color * 7 + 28 + i
                 ary[ch, :] = hand_count
-        return ary.reshape((1, 42, 9, 9))
+        # 段・筋
+        for sq in range(Square.SQ_NB):
+            ary[Square.rank_of(sq) + 42, sq] = 1.0
+            ary[Square.file_of(sq) + 51, sq] = 1.0
+        # 定数1
+        ary[60, :] = 1.0
+        return ary.reshape((1, 61, 9, 9))
 
     def _get_move_index(self, move: Move):
         """
