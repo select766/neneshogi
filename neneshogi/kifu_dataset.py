@@ -10,7 +10,8 @@ from typing import Iterable
 
 import numpy as np
 
-from . import config
+# 別ディレクトリにコピーして使われるので、相対import不可
+from neneshogi import config
 
 BOARD_SHAPES = {1: (61, 9, 9)}
 

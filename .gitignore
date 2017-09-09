@@ -105,3 +105,7 @@ ENV/
 .idea/modules.xml
 .idea/neneshogi_private.iml
 .idea/workspace.xml
+
+# project specific
+/data/model/*
+!.gitkeep

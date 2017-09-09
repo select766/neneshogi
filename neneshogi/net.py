@@ -7,6 +7,8 @@ import chainer.functions as F
 import chainer.links as L
 
 
+# 別ディレクトリにコピーして使われるので、相対import不可
+
 class ResBlock(chainer.Chain):
     def __init__(self, in_ch, out_ch):
         super().__init__(
