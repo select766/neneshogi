@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from typing import Tuple
 
 import numpy as np
 import chainer
@@ -27,43 +28,42 @@ class ResBlock(chainer.Chain):
 
 class Model(chainer.Chain):
     # モデルの設定
-    def __init__(self, ch=16, depth=4, value_function=False):
-        self.value_function = value_function
-        out_ch = 1 if self.value_function else 27
-        conv_first = L.Convolution2D(None, ch, 5, pad=2, nobias=True)
-        bn_first = L.BatchNormalization(ch)
-        res_blocks = chainer.ChainList(*[ResBlock(ch, ch) for i in range(depth)])
-        if value_function:
-            fc1 = L.Linear(None, 256)
-            bn_fc1 = L.BatchNormalization(256)
-            fc2 = L.Linear(None, out_ch)
-
-            super().__init__(conv_first=conv_first,
-                             bn_first=bn_first,
-                             res_blocks=res_blocks,
-                             fc1=fc1,
-                             bn_fc1=bn_fc1,
-                             fc2=fc2)
-        else:
-            conv_last = L.Convolution2D(None, out_ch, 1)
-            super().__init__(conv_first=conv_first,
-                             bn_first=bn_first,
-                             res_blocks=res_blocks,
-                             conv_last=conv_last)
+    def __init__(self, ch=16, depth=4):
+        chains = {}
+        chains["conv_first"] = L.Convolution2D(None, ch, 5, pad=2, nobias=True)
+        chains["bn_first"] = L.BatchNormalization(ch)
+        chains["res_blocks"] = chainer.ChainList(*[ResBlock(ch, ch) for i in range(depth)])
+        chains["move_res_block"] = ResBlock(ch, ch)
+        chains["move_conv"] = L.Convolution2D(None, 27, 3, pad=1)
+        chains["value_res_block"] = ResBlock(ch, ch)
+        chains["value_fc"] = L.Linear(None, 1)
+        super().__init__(**chains)
 
         self.ch = ch
         self.depth = depth
-        self.out_ch = out_ch
 
     # モデルを呼び出す
-    def __call__(self, x):
+    def forward(self, x: chainer.Variable) -> Tuple[chainer.Variable, chainer.Variable]:
         x = F.relu(self.bn_first(self.conv_first(x)))
         for i in range(len(self.res_blocks)):
             x = self.res_blocks[i](x)
-        if self.value_function:
-            x = F.dropout(F.relu(self.bn_fc1(self.fc1(x))))
-            x = (F.reshape(self.fc2(x), (-1,)))
-        else:
-            x = self.conv_last(x)
-            # x = F.reshape(x, (x.data.shape[0], -1))
-        return x
+        # move function
+        m = self.move_res_block(x)
+        m = self.move_conv(F.relu(m))
+        m = F.reshape(m, (m.data.shape[0], -1))
+
+        # value function
+        v = self.value_res_block(x)
+        v = self.value_fc(F.relu(v))
+        v = F.flatten(v)
+
+        return m, v
+
+    def __call__(self, x, move, value):
+        pred_move, pred_value = self.forward(x)
+        loss_move = F.softmax_cross_entropy(pred_move, move)
+        loss_value = F.mean_absolute_error(pred_value, (value / 600.0).astype(np.float32))
+        loss_total = loss_move + loss_value
+        accuracy = F.accuracy(pred_move, move)
+        chainer.report({"loss": loss_total, "accuracy": accuracy}, self)
+        return loss_total
