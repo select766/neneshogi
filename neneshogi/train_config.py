@@ -95,6 +95,22 @@ def load_trainer(path, gpu: int = -1) -> training.Trainer:
         'main/loss_value', 'validation/main/loss_value',
         'main/accuracy', 'validation/main/accuracy', 'lr'
     ]), trigger=log_interval)
+
+    if extensions.PlotReport.available():
+        trainer.extend(
+            extensions.PlotReport(['main/loss', 'validation/main/loss'],
+                                  'epoch', file_name='loss.png'))
+        trainer.extend(
+            extensions.PlotReport(['main/loss_move', 'validation/main/loss_move'],
+                                  'epoch', file_name='loss_move.png'))
+        trainer.extend(
+            extensions.PlotReport(['main/loss_value', 'validation/main/loss_value'],
+                                  'epoch', file_name='loss_value.png'))
+        trainer.extend(
+            extensions.PlotReport(
+                ['main/accuracy', 'validation/main/accuracy'],
+                'epoch', file_name='accuracy.png'))
+
     trainer.extend(extensions.ProgressBar(update_interval=10))
 
     return trainer
