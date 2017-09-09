@@ -1,10 +1,12 @@
 """
 設定ファイルからモデル学習のためのオブジェクトを生成
 """
-
+import argparse
 import sys
 import os
 import shutil
+
+import time
 import yaml
 import warnings
 import chainer
@@ -28,10 +30,10 @@ def load_trainer(path, gpu: int = -1) -> training.Trainer:
         warnings.warn(
             f"training id from directory name and solver.yaml mismatch: {id_from_dir} != {id_from_solver_yaml}")
 
-    with open(os.path.join(path, solver_yaml["dataset_config"])) as f:
+    with open(os.path.join(path, "dataset.yaml")) as f:
         dataset_yaml = yaml.load(f)
 
-    with open(os.path.join(path, solver_yaml["model_config"])) as f:
+    with open(os.path.join(path, "model.yaml")) as f:
         model_yaml = yaml.load(f)
 
     # pythonファイルをコピー
@@ -94,3 +96,40 @@ def load_trainer(path, gpu: int = -1) -> training.Trainer:
     trainer.extend(extensions.ProgressBar(update_interval=10))
 
     return trainer
+
+
+def command_clone():
+    """
+    設定ファイルをコピーする
+    yamlファイルのコピーと、新規idの設定
+
+    python -m neneshogi.train_config clone 201712345678
+    :return:
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("src_id")
+    args = parser.parse_args()
+    dst_id = time.strftime("%Y%m%d%H%M%S")
+    src_dir = os.path.join(config.MODEL_OUTPUT_DIR, args.src_id)
+    dst_dir = os.path.join(config.MODEL_OUTPUT_DIR, dst_id)
+    os.makedirs(dst_dir, exist_ok=False)
+    for name in ["dataset.yaml", "model.yaml", "solver.yaml"]:
+        shutil.copy(os.path.join(src_dir, name), os.path.join(dst_dir, name))
+    with open(os.path.join(dst_dir, "solver.yaml"), "r") as f:
+        solver_yaml = yaml.load(f)
+    solver_yaml["id"] = dst_id
+    with open(os.path.join(dst_dir, "solver.yaml"), "w") as f:
+        yaml.dump(solver_yaml, f, default_flow_style=False)
+
+
+def main():
+    command = sys.argv[1]
+    sys.argv.pop(1)
+    if command == "clone":
+        command_clone()
+    else:
+        raise NotImplementedError(f"Unknown command {command}")
+
+
+if __name__ == '__main__':
+    main()
