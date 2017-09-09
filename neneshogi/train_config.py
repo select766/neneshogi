@@ -91,6 +91,8 @@ def load_trainer(path, gpu: int = -1) -> training.Trainer:
     trainer.extend(extensions.observe_lr(), trigger=log_interval)
     trainer.extend(extensions.PrintReport([
         'epoch', 'iteration', 'main/loss', 'validation/main/loss',
+        'main/loss_move', 'validation/main/loss_move',
+        'main/loss_value', 'validation/main/loss_value',
         'main/accuracy', 'validation/main/accuracy', 'lr'
     ]), trigger=log_interval)
     trainer.extend(extensions.ProgressBar(update_interval=10))

@@ -30,7 +30,7 @@ class ResBlock(chainer.Chain):
 
 class Model(chainer.Chain):
     # モデルの設定
-    def __init__(self, ch=16, depth=4):
+    def __init__(self, ch=16, depth=4, weight_move=1.0, weight_value=1.0):
         chains = {}
         chains["conv_first"] = L.Convolution2D(None, ch, 5, pad=2, nobias=True)
         chains["bn_first"] = L.BatchNormalization(ch)
@@ -43,6 +43,8 @@ class Model(chainer.Chain):
 
         self.ch = ch
         self.depth = depth
+        self.weight_move = weight_move
+        self.weight_value = weight_value
 
     # モデルを呼び出す
     def forward(self, x: chainer.Variable) -> Tuple[chainer.Variable, chainer.Variable]:
@@ -64,8 +66,9 @@ class Model(chainer.Chain):
     def __call__(self, x, move, value):
         pred_move, pred_value = self.forward(x)
         loss_move = F.softmax_cross_entropy(pred_move, move)
-        loss_value = F.mean_absolute_error(pred_value, (value / 600.0).astype(np.float32))
-        loss_total = loss_move + loss_value
+        # 勝率でL2ロス計算(要検討)
+        loss_value = F.mean_squared_error(F.sigmoid(pred_value), F.sigmoid((value / 600.0).astype(np.float32)))
+        loss_total = loss_move * self.weight_move + loss_value * self.weight_value
         accuracy = F.accuracy(pred_move, move)
-        chainer.report({"loss": loss_total, "accuracy": accuracy}, self)
+        chainer.report({"loss": loss_total, "loss_move": loss_move, "loss_value": loss_value, "accuracy": accuracy}, self)
         return loss_total
