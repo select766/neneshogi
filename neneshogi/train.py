@@ -6,9 +6,6 @@ import argparse
 import numpy as np
 import chainer
 
-from chainer import training
-from chainer.training import extensions
-
 from .train_config import load_trainer
 
 

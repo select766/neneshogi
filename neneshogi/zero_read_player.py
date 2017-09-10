@@ -11,16 +11,14 @@ import sys
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
 from .usi import Usi
-from .net import Model
+from .train_config import load_model
 
 
 class ZeroReadPlayer(Engine):
     pos: Position
 
-    def __init__(self, model_path):
+    def __init__(self):
         self.pos = Position()
-        self.model = Model(ch=128, depth=4)
-        chainer.serializers.load_npz(model_path, self.model)
 
     @property
     def name(self):
@@ -31,10 +29,11 @@ class ZeroReadPlayer(Engine):
         return "select766"
 
     def get_options(self):
-        return {}
+        return {"model_path": "filename default <empty>"}
 
     def isready(self, options: Dict[str, str]):
-        pass
+        model_path = options["model_path"]
+        self.model = load_model(model_path)
 
     def position(self, command: str):
         self.pos.set_usi_position(command)
@@ -76,7 +75,7 @@ class ZeroReadPlayer(Engine):
         ary[60, :] = 1.0
         return ary.reshape((1, 61, 9, 9))
 
-    def _get_move_index(self, move: Move):
+    def _get_move_index(self, move: Move) -> int:
         """
         行動に対応する行列内indexを取得
         :param move: 現在の手番が手前になるように回転した盤面での手
@@ -120,7 +119,7 @@ class ZeroReadPlayer(Engine):
                     ch = 9
             if move.is_promote:
                 ch += 10
-        ary_index = (0, ch, sq_move_to // 9, sq_move_to % 9)
+        ary_index = ch * 81 + sq_move_to
         return ary_index
 
     def _make_sterategy(self, move_list: List[Move]):
@@ -130,8 +129,8 @@ class ZeroReadPlayer(Engine):
         """
         dnn_input = self._make_dnn_input()
         with chainer.using_config("train", False):
-            model_output_var = self.model(dnn_input)
-            model_output = model_output_var.data  # type: np.ndarray
+            model_output_var_move, model_output_var_value = self.model.forward(dnn_input)
+            model_output = model_output_var_move.data  # type: np.ndarray
         # 表示上、softmaxをかけて確率にしておく
         mo_exp = np.exp(model_output)
         model_output = mo_exp / np.sum(mo_exp)
@@ -152,7 +151,7 @@ class ZeroReadPlayer(Engine):
         max_score = -1.0
         for move, rot_move in zip(move_list, rot_move_list):
             ary_index = self._get_move_index(rot_move)
-            score = model_output[ary_index]
+            score = model_output[0, ary_index]
             if score > max_score:
                 max_score = score
                 max_move = move
@@ -169,16 +168,19 @@ class ZeroReadPlayer(Engine):
         move = self._make_sterategy(move_list)
         return move.to_usi_string()
 
-
-if __name__ == "__main__":
+def main():
     import logging
 
     logger = logging.getLogger("zero_read_player")
     try:
-        engine = ZeroReadPlayer("data/dnn/snapshot")
+        engine = ZeroReadPlayer()
         logger.debug("Start USI")
         usi = Usi(engine)
         usi.run()
         logger.debug("Quit USI")
     except Exception as ex:
         logger.exception("Unhandled error %s", ex)
+
+
+if __name__ == "__main__":
+    main()

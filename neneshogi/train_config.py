@@ -116,6 +116,31 @@ def load_trainer(path, gpu: int = -1) -> training.Trainer:
     return trainer
 
 
+def load_model(model_path: str) -> chainer.Chain:
+    """
+    学習済みモデルをロードする。
+    :param model_path: ウェイトファイルのパス
+    :return:
+    """
+    model_dir = os.path.dirname(os.path.dirname(model_path))
+    code_dir = os.path.join(model_dir, "code")
+
+    with open(os.path.join(model_dir, "model.yaml")) as f:
+        model_yaml = yaml.load(f)
+
+    # pythonファイルをimport
+    sys.path.insert(0, code_dir)
+    import model
+
+    # モデルを生成
+    model_class = getattr(model, model_yaml["class"])
+    model = model_class(**model_yaml.get("kwargs", {}))
+
+    chainer.serializers.load_npz(model_path, model)
+
+    return model
+
+
 def command_clone():
     """
     設定ファイルをコピーする
