@@ -275,6 +275,7 @@ class NarrowSearchPlayer(Engine):
     batchsize: int
     gpu: int
     value_proxy_batch: ValueProxyBatch
+    nodes_count: int  # ある局面の探索開始からのノード数
 
     def __init__(self):
         self.pos = Position()
@@ -283,6 +284,7 @@ class NarrowSearchPlayer(Engine):
         self.depth = 1
         self.batchsize = 256
         self.value_proxy_batch = None
+        self.nodes_count = 0
 
     @property
     def name(self):
@@ -331,6 +333,7 @@ class NarrowSearchPlayer(Engine):
         self.do_search_recursion(tree_root)
         # 評価値計算
         self.value_proxy_batch.resolve()
+        self.nodes_count += self.value_proxy_batch.resolve_count
         logger.info(f"Calculated {self.value_proxy_batch.resolve_count} positions")
         # 読み筋を計算
         root_value = tree_root.get_value()
@@ -340,7 +343,8 @@ class NarrowSearchPlayer(Engine):
             return "resign"
 
         pv_str = " ".join([move.to_usi_string() for move in pv])
-        sys.stdout.write(f"info depth {depth} score cp {int(root_value * 600)} pv {pv_str}\n")
+        sys.stdout.write(f"info depth {depth} nodes {self.nodes_count} score cp {int(root_value * 600)} pv {pv_str}\n")
+        sys.stdout.flush()
         return pv[0].to_usi_string()
 
     def generate_tree_root(self) -> GameTreeNode:
@@ -354,6 +358,7 @@ class NarrowSearchPlayer(Engine):
 
     def go(self, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
+        self.nodes_count = 0
         tree_root = self.generate_tree_root()
 
         move_str = "resign"
