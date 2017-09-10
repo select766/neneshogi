@@ -16,9 +16,11 @@ from .train_config import load_model
 
 class ZeroReadPlayer(Engine):
     pos: Position
+    model: chainer.Chain
 
     def __init__(self):
         self.pos = Position()
+        self.model = None
 
     @property
     def name(self):
@@ -122,7 +124,7 @@ class ZeroReadPlayer(Engine):
         ary_index = ch * 81 + sq_move_to
         return ary_index
 
-    def _make_sterategy(self, move_list: List[Move]):
+    def _make_strategy(self, move_list: List[Move]):
         """
         方策関数を呼び出して手を決定する
         :return:
@@ -165,8 +167,9 @@ class ZeroReadPlayer(Engine):
         if len(move_list) == 0:
             return "resign"
 
-        move = self._make_sterategy(move_list)
+        move = self._make_strategy(move_list)
         return move.to_usi_string()
+
 
 def main():
     import logging
