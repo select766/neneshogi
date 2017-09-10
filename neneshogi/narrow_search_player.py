@@ -223,7 +223,7 @@ class GameTreeNode:
         ary_index = ch * 81 + sq_move_to
         return ary_index
 
-    def expand_child(self, pos: Position, value_proxy_batch: ValueProxyBatch):
+    def expand_child(self, pos: Position, value_proxy_batch: ValueProxyBatch, expand_width: int):
         """
         現在葉ノードである場合に、実現確率の高い子ノードを作成する。
         :param pos: このノードに対応するPosition
@@ -260,7 +260,7 @@ class GameTreeNode:
         score_moves.sort()  # move_probが大きい順に並び替え
 
         # TODO: top Nの値を設定
-        top_moves = [item[2] for item in score_moves[:3]]  # type: List[Move]
+        top_moves = [item[2] for item in score_moves[:expand_width]]  # type: List[Move]
         for move in top_moves:
             undo_info = pos.do_move(move)
             child_node = GameTreeNode(pos, value_proxy_batch)
@@ -277,6 +277,7 @@ class NarrowSearchPlayer(Engine):
     batchsize: int
     gpu: int
     value_proxy_batch: ValueProxyBatch
+    expand_width: int
     nodes_count: int  # ある局面の探索開始からのノード数
 
     def __init__(self):
@@ -286,6 +287,7 @@ class NarrowSearchPlayer(Engine):
         self.depth = 1
         self.batchsize = 256
         self.value_proxy_batch = None
+        self.expand_width = 3
         self.nodes_count = 0
 
     @property
@@ -299,11 +301,13 @@ class NarrowSearchPlayer(Engine):
     def get_options(self):
         return {"model_path": "filename default <empty>",
                 "gpu": "spin default -1 min -1 max 0",
-                "depth": "spin default 1 min 1 max 5"}
+                "depth": "spin default 1 min 1 max 5",
+                "expand_width": "spin default 3 min 1 max 10"}
 
     def isready(self, options: Dict[str, str]):
         self.gpu = int(options["gpu"])
         self.depth = int(options["depth"])
+        self.expand_width = int(options["expand_width"])
         self.model = load_model(options["model_path"])
         if self.gpu >= 0:
             chainer.cuda.get_device_from_id(self.gpu).use()
@@ -316,7 +320,7 @@ class NarrowSearchPlayer(Engine):
     def do_search_recursion(self, node: GameTreeNode):
         if node.is_leaf:
             # 葉なら、1つ深く展開
-            node.expand_child(self.pos, self.value_proxy_batch)
+            node.expand_child(self.pos, self.value_proxy_batch, self.expand_width)
         else:
             # 内部ノードなら、1つ深いノードで再帰的に計算
             for move, child_node in node.children.items():
