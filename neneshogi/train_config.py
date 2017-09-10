@@ -57,6 +57,9 @@ def load_trainer(path, gpu: int = -1) -> training.Trainer:
     # モデルを生成
     model_class = getattr(model, model_yaml["class"])
     model = model_class(**model_yaml.get("kwargs", {}))
+    initmodel_path = solver_yaml.get("initmodel", None)
+    if initmodel_path:
+        chainer.serializers.load_npz(initmodel_path, model)
 
     if gpu >= 0:
         model.to_gpu()
@@ -68,7 +71,8 @@ def load_trainer(path, gpu: int = -1) -> training.Trainer:
         dataset_loaders["val"], solver_yaml["val_batchsize"], repeat=False, shuffle=False
     )
 
-    optimizer = chainer.optimizers.MomentumSGD(lr=0.01, momentum=0.9)
+    optimizer_class = {"MomentumSGD": chainer.optimizers.MomentumSGD}[solver_yaml["optimizer"]]
+    optimizer = optimizer_class(**solver_yaml.get("optimizer_kwargs", {}))
     optimizer.setup(model)
 
     updater = training.StandardUpdater(train_iter, optimizer, device=gpu)
