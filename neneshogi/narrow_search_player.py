@@ -115,6 +115,8 @@ class ValueProxyBatch:
         蓄積された要素をDNNに投入し解決する
         :return:
         """
+        if len(self.items) == 0:
+            return
         dnn_input = np.concatenate([item._dnn_input for item in self.items], axis=0)
         if self.gpu >= 0:
             dnn_input = chainer.cuda.to_gpu(dnn_input)
