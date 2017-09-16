@@ -115,14 +115,17 @@ class ValueProxyBatch:
         蓄積された要素をDNNに投入し解決する
         :return:
         """
+        logger.info(f"evaluating {len(self.items)} positions")
         if len(self.items) == 0:
             return
-        dnn_input = np.concatenate([item._dnn_input for item in self.items], axis=0)
-        if self.gpu >= 0:
-            dnn_input = chainer.cuda.to_gpu(dnn_input)
-        model_output_var_move, model_output_var_value = self.model.forward(dnn_input)
-        model_output_move = chainer.cuda.to_cpu(model_output_var_move.data)
-        model_output_value = chainer.cuda.to_cpu(model_output_var_value.data)
+        with chainer.using_config('train', False):
+            with chainer.using_config('enable_backprop', False):
+                dnn_input = np.concatenate([item._dnn_input for item in self.items], axis=0)
+                if self.gpu >= 0:
+                    dnn_input = chainer.cuda.to_gpu(dnn_input)
+                model_output_var_move, model_output_var_value = self.model.forward(dnn_input)
+                model_output_move = chainer.cuda.to_cpu(model_output_var_move.data)
+                model_output_value = chainer.cuda.to_cpu(model_output_var_value.data)
         for i, item in enumerate(self.items):
             item.resolved = True
             item.value = model_output_value[i]
@@ -374,6 +377,7 @@ class NarrowSearchPlayer(Engine):
 
 
 def main():
+    chainer.config.use_cudnn = "never"
     try:
         engine = NarrowSearchPlayer()
         logger.debug("Start USI")
