@@ -14,6 +14,8 @@ logger = getLogger(__name__)
 class Usi:
     engine: Engine
     engine_options: Dict[str, str]
+    # 将棋所で同一エンジン別設定を行うときに、区別がつくようにエンジン名にsuffixをつける機能
+    name_suffix = ""
 
     def __init__(self, engine: Engine):
         self.engine = engine
@@ -33,7 +35,7 @@ class Usi:
             cmd = tokens[0]
             resp_lines = []
             if cmd == "usi":
-                resp_lines.append(f"id name {self.engine.name}")
+                resp_lines.append(f"id name {self.engine.name+Usi.name_suffix}")
                 resp_lines.append(f"id author {self.engine.author}")
                 resp_lines.extend(f"option name {k} type {v}" for k, v in self.engine.get_options().items())
                 resp_lines.append("usiok")

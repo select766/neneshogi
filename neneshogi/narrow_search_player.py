@@ -26,6 +26,10 @@ DNN評価値関数による、N手読みプレイヤーの実装
 import random
 from typing import Dict, Optional, List
 
+from logging import getLogger
+
+logger = getLogger(__name__)
+
 import numpy as np
 import chainer
 import sys
@@ -130,7 +134,7 @@ class ValueProxyBatch:
                 # TODO: ずらす幅の検証
                 model_output_value += \
                     np.random.normal(loc=0.0, scale=0.01, size=model_output_value.shape) \
-                    .astype(model_output_value.dtype)
+                        .astype(model_output_value.dtype)
         for i, item in enumerate(self.items):
             item.resolved = True
             item.value = model_output_value[i]
@@ -379,22 +383,3 @@ class NarrowSearchPlayer(Engine):
         for cur_depth in range(1, self.depth + 1):
             move_str = self.do_search_root(tree_root, cur_depth)
         return move_str
-
-
-def main():
-    chainer.config.use_cudnn = "never"
-    try:
-        engine = NarrowSearchPlayer()
-        logger.debug("Start USI")
-        usi = Usi(engine)
-        usi.run()
-        logger.debug("Quit USI")
-    except Exception as ex:
-        logger.exception("Unhandled error %s", ex)
-
-
-if __name__ == "__main__":
-    import logging
-
-    logger = logging.getLogger("narrow_search_player")
-    main()
