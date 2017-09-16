@@ -126,6 +126,11 @@ class ValueProxyBatch:
                 model_output_var_move, model_output_var_value = self.model.forward(dnn_input)
                 model_output_move = chainer.cuda.to_cpu(model_output_var_move.data)
                 model_output_value = chainer.cuda.to_cpu(model_output_var_value.data)
+                # 進行をばらけさせるために評価値をすこしランダムにずらす
+                # TODO: ずらす幅の検証
+                model_output_value += \
+                    np.random.normal(loc=0.0, scale=0.01, size=model_output_value.shape) \
+                    .astype(model_output_value.dtype)
         for i, item in enumerate(self.items):
             item.resolved = True
             item.value = model_output_value[i]
@@ -262,7 +267,6 @@ class GameTreeNode:
             score_moves.append((-move_prob, i, move_list[i]))  # iを入れることで、moveの比較が起こらないようにする
         score_moves.sort()  # move_probが大きい順に並び替え
 
-        # TODO: top Nの値を設定
         top_moves = [item[2] for item in score_moves[:expand_width]]  # type: List[Move]
         for move in top_moves:
             undo_info = pos.do_move(move)
@@ -316,6 +320,7 @@ class NarrowSearchPlayer(Engine):
             chainer.cuda.get_device_from_id(self.gpu).use()
             self.model.to_gpu()
         self.value_proxy_batch = ValueProxyBatch(self.model, self.gpu, self.batchsize)
+        # TODO: ここで一度NNを走らせて、CUDAカーネルの初期化をさせたほうがよい
 
     def position(self, command: str):
         self.pos.set_usi_position(command)
