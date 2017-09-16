@@ -4,9 +4,12 @@
 import random
 from typing import Dict, Optional
 
+from logging import getLogger
+
+logger = getLogger(__name__)
+
 from .position import Position
 from .engine import Engine
-from .usi import Usi
 
 
 class RandomPlayer(Engine):
@@ -40,16 +43,3 @@ class RandomPlayer(Engine):
 
         move = random.choice(move_list)
         return move.to_usi_string()
-
-
-if __name__ == "__main__":
-    import logging
-    logger = logging.getLogger("random_player")
-    try:
-        engine = RandomPlayer()
-        logger.debug("Start USI")
-        usi = Usi(engine)
-        usi.run()
-        logger.debug("Quit USI")
-    except Exception as ex:
-        logger.exception("Unhandled error %s", ex)

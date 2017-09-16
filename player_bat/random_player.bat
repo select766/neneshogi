@@ -1,4 +1,4 @@
 @echo off
 cd /d %~dp0
 cd ..
-python -m neneshogi.random_player
+python -m neneshogi.neneshogi RandomPlayer

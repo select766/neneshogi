@@ -16,13 +16,16 @@ DNN評価値関数による、N手読みプレイヤーの実装
 import random
 from typing import Dict, Optional, List
 
+from logging import getLogger
+
+logger = getLogger(__name__)
+
 import numpy as np
 import chainer
 import sys
 
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
-from .usi import Usi
 from .train_config import load_model
 
 
@@ -67,7 +70,7 @@ class GameTreeNode:
             return [self.pv] + self.children[self.pv].get_pv()
 
 
-class SimpleMultiReadPlayer(Engine):
+class SimpleMultiSearchPlayer(Engine):
     pos: Position
     model: chainer.Chain
     depth: int
@@ -85,7 +88,7 @@ class SimpleMultiReadPlayer(Engine):
 
     @property
     def name(self):
-        return "NeneShogi SimpleMultiRead"
+        return "NeneShogi SimpleMultiSearch"
 
     @property
     def author(self):
@@ -200,21 +203,3 @@ class SimpleMultiReadPlayer(Engine):
         pv_str = " ".join([move.to_usi_string() for move in pv])
         sys.stdout.write(f"info depth 1 score cp {int(root_value * 600)} pv {pv_str}\n")
         return pv[0].to_usi_string()
-
-
-def main():
-    try:
-        engine = SimpleMultiReadPlayer()
-        logger.debug("Start USI")
-        usi = Usi(engine)
-        usi.run()
-        logger.debug("Quit USI")
-    except Exception as ex:
-        logger.exception("Unhandled error %s", ex)
-
-
-if __name__ == "__main__":
-    import logging
-
-    logger = logging.getLogger("simple_multi_read_player")
-    main()

@@ -4,17 +4,20 @@ DNN方策関数による、0手読みプレイヤーの実装
 import random
 from typing import Dict, Optional, List
 
+from logging import getLogger
+
+logger = getLogger(__name__)
+
 import numpy as np
 import chainer
 import sys
 
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
-from .usi import Usi
 from .train_config import load_model
 
 
-class ZeroReadPlayer(Engine):
+class ZeroSearchPlayer(Engine):
     pos: Position
     model: chainer.Chain
 
@@ -24,7 +27,7 @@ class ZeroReadPlayer(Engine):
 
     @property
     def name(self):
-        return "NeneShogi ZeroRead"
+        return "NeneShogi ZeroSearch"
 
     @property
     def author(self):
@@ -169,21 +172,3 @@ class ZeroReadPlayer(Engine):
 
         move = self._make_strategy(move_list)
         return move.to_usi_string()
-
-
-def main():
-    import logging
-
-    logger = logging.getLogger("zero_read_player")
-    try:
-        engine = ZeroReadPlayer()
-        logger.debug("Start USI")
-        usi = Usi(engine)
-        usi.run()
-        logger.debug("Quit USI")
-    except Exception as ex:
-        logger.exception("Unhandled error %s", ex)
-
-
-if __name__ == "__main__":
-    main()

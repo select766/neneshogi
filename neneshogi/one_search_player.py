@@ -4,17 +4,20 @@ DNN評価値関数による、1手読みプレイヤーの実装
 import random
 from typing import Dict, Optional, List
 
+from logging import getLogger
+
+logger = getLogger(__name__)
+
 import numpy as np
 import chainer
 import sys
 
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
-from .usi import Usi
 from .train_config import load_model
 
 
-class OneReadPlayer(Engine):
+class OneSearchPlayer(Engine):
     pos: Position
     model: chainer.Chain
     gpu: int
@@ -26,7 +29,7 @@ class OneReadPlayer(Engine):
 
     @property
     def name(self):
-        return "NeneShogi OneRead"
+        return "NeneShogi OneSearch"
 
     @property
     def author(self):
@@ -113,21 +116,3 @@ class OneReadPlayer(Engine):
 
         move = self._make_strategy(move_list)
         return move.to_usi_string()
-
-
-def main():
-    import logging
-
-    logger = logging.getLogger("one_read_player")
-    try:
-        engine = OneReadPlayer()
-        logger.debug("Start USI")
-        usi = Usi(engine)
-        usi.run()
-        logger.debug("Quit USI")
-    except Exception as ex:
-        logger.exception("Unhandled error %s", ex)
-
-
-if __name__ == "__main__":
-    main()
