@@ -37,6 +37,7 @@ import sys
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
 from .train_config import load_model
+from . import util
 
 
 class ValueProxy:
@@ -129,7 +130,8 @@ class ValueProxyBatch:
                 if self.gpu >= 0:
                     dnn_input = chainer.cuda.to_gpu(dnn_input)
                 model_output_var_move, model_output_var_value = self.model.forward(dnn_input)
-                model_output_var_move_softmax = chainer.functions.softmax(model_output_var_move * (1.0 / self.softmax_temperature))
+                model_output_var_move_softmax = chainer.functions.softmax(
+                    model_output_var_move * (1.0 / self.softmax_temperature))
                 model_output_move = chainer.cuda.to_cpu(model_output_var_move_softmax.data)
                 model_output_value = chainer.cuda.to_cpu(model_output_var_value.data)
                 # 進行をばらけさせるために評価値をすこしランダムにずらす
@@ -352,7 +354,7 @@ class ProbSearchPlayer(Engine):
                 child_remain_depth = remain_depth - move_depth
                 if child_remain_depth > 0.0:
                     undo_info = self.pos.do_move(move)
-                    self.do_search_recursion(child_node, child_remain_depth, call_depth+1)
+                    self.do_search_recursion(child_node, child_remain_depth, call_depth + 1)
                     self.pos.undo_move(undo_info)
                     any_child_evaluated = True
             node.is_child_evaluated = any_child_evaluated
@@ -400,6 +402,7 @@ class ProbSearchPlayer(Engine):
         self.value_proxy_batch.resolve()
         return tree_root
 
+    @util.release_gpu_memory_pool
     def go(self, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
         self.nodes_count = 0
@@ -408,8 +411,4 @@ class ProbSearchPlayer(Engine):
         move_str = "resign"
         for cur_depth in range(1, self.depth + 1):
             move_str = self.do_search_root(tree_root, float(cur_depth))
-        if self.gpu >= 0 and hasattr(chainer.cuda, "memory_pool"):
-            # 2つのプログラムを同時に走らせて対戦させたときに、memory poolがGPUメモリを持ったままだと相手側にメモリ不足が生じる
-            # TODO: ponderを実装したらこれでは解決しない
-            chainer.cuda.memory_pool.free_all_blocks()
         return move_str

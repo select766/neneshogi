@@ -27,6 +27,7 @@ import sys
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
 from .train_config import load_model
+from . import util
 
 
 class GameTreeNode:
@@ -179,6 +180,7 @@ class SimpleMultiSearchPlayer(Engine):
         else:
             return np.array([], dtype=np.float32)
 
+    @util.release_gpu_memory_pool
     def go(self, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
         # 木の作成

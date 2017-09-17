@@ -36,8 +36,8 @@ import sys
 
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
-from .usi import Usi
 from .train_config import load_model
+from . import util
 
 
 class ValueProxy:
@@ -374,6 +374,7 @@ class NarrowSearchPlayer(Engine):
         self.value_proxy_batch.resolve()
         return tree_root
 
+    @util.release_gpu_memory_pool
     def go(self, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
         self.nodes_count = 0

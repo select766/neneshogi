@@ -15,6 +15,7 @@ import sys
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
 from .train_config import load_model
+from . import util
 
 
 class ZeroSearchPlayer(Engine):
@@ -164,6 +165,7 @@ class ZeroSearchPlayer(Engine):
         sys.stdout.write(f"info string {max_move.to_usi_string()}({int(max_score*100)}%)\n")
         return max_move
 
+    @util.release_gpu_memory_pool
     def go(self, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
         move_list = self.pos.generate_move_list()
