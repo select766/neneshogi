@@ -21,10 +21,12 @@ from . import util
 class ZeroSearchPlayer(Engine):
     pos: Position
     model: chainer.Chain
+    gpu: int
 
     def __init__(self):
         self.pos = Position()
         self.model = None
+        self.gpu = -1
 
     @property
     def name(self):
@@ -35,11 +37,15 @@ class ZeroSearchPlayer(Engine):
         return "select766"
 
     def get_options(self):
-        return {"model_path": "filename default <empty>"}
+        return {"model_path": "filename default <empty>",
+                "gpu": "spin default -1 min -1 max 0"}
 
     def isready(self, options: Dict[str, str]):
-        model_path = options["model_path"]
-        self.model = load_model(model_path)
+        self.gpu = int(options["gpu"])
+        self.model = load_model(options["model_path"])
+        if self.gpu >= 0:
+            chainer.cuda.get_device_from_id(self.gpu).use()
+            self.model.to_gpu()
 
     def position(self, command: str):
         self.pos.set_usi_position(command)
@@ -135,8 +141,10 @@ class ZeroSearchPlayer(Engine):
         """
         dnn_input = self._make_dnn_input()
         with chainer.using_config("train", False):
+            if self.gpu >= 0:
+                dnn_input = chainer.cuda.to_gpu(dnn_input)
             model_output_var_move, model_output_var_value = self.model.forward(dnn_input)
-            model_output = model_output_var_move.data  # type: np.ndarray
+            model_output = chainer.cuda.to_cpu(model_output_var_move.data)  # type: np.ndarray
         # 表示上、softmaxをかけて確率にしておく
         mo_exp = np.exp(model_output)
         model_output = mo_exp / np.sum(mo_exp)
