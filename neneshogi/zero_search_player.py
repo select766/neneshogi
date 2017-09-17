@@ -10,10 +10,10 @@ logger = getLogger(__name__)
 
 import numpy as np
 import chainer
-import sys
 
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
+from .usi_info_writer import UsiInfoWriter
 from .train_config import load_model
 from . import util
 
@@ -128,7 +128,7 @@ class ZeroSearchPlayer(Engine):
         ary_index = ch * 81 + sq_move_to
         return ary_index
 
-    def _make_strategy(self, move_list: List[Move]):
+    def _make_strategy(self, usi_info_writer: UsiInfoWriter, move_list: List[Move]):
         """
         方策関数を呼び出して手を決定する
         :return:
@@ -161,16 +161,15 @@ class ZeroSearchPlayer(Engine):
             if score > max_score:
                 max_score = score
                 max_move = move
-        # TODO: 読み筋を出力する機能をUSI側に移動
-        sys.stdout.write(f"info string {max_move.to_usi_string()}({int(max_score*100)}%)\n")
+        usi_info_writer.write_string(f"{max_move.to_usi_string()}({int(max_score*100)}%)")
         return max_move
 
     @util.release_gpu_memory_pool
-    def go(self, btime: Optional[int] = None, wtime: Optional[int] = None,
+    def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
         move_list = self.pos.generate_move_list()
         if len(move_list) == 0:
             return "resign"
 
-        move = self._make_strategy(move_list)
+        move = self._make_strategy(usi_info_writer, move_list)
         return move.to_usi_string()

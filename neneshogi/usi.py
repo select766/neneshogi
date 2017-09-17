@@ -9,7 +9,11 @@ from typing import Iterable, Dict, List
 from .engine import Engine
 
 from logging import getLogger
+
 logger = getLogger(__name__)
+
+from .usi_info_writer import UsiInfoWriter
+
 
 class Usi:
     engine: Engine
@@ -26,6 +30,7 @@ class Usi:
         コマンドループ
         :return: quitコマンドが来たらメソッドが終了する
         """
+        info_writer = UsiInfoWriter()
         for recv_line in sys.stdin:
             recv_line_nonl = recv_line.rstrip()
             logger.info(f"USI< {recv_line_nonl}")
@@ -58,7 +63,7 @@ class Usi:
                         go_option_dict[go_option_name] = int(tokens.pop(0))
                     else:
                         raise NotImplementedError(f"Unknown go option {go_option_name}")
-                bestmove = self.engine.go(**go_option_dict)
+                bestmove = self.engine.go(info_writer, **go_option_dict)
                 resp_lines.append(f"bestmove {bestmove}")
             elif cmd == "gameover":
                 # gameover win

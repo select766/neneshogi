@@ -32,10 +32,10 @@ logger = getLogger(__name__)
 
 import numpy as np
 import chainer
-import sys
 
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
+from .usi_info_writer import UsiInfoWriter
 from .train_config import load_model
 from . import util
 
@@ -364,7 +364,7 @@ class ProbSearchPlayer(Engine):
             self.value_proxy_batch.append(node.value_proxy)
             node.is_evaluated = True
 
-    def do_search_root(self, tree_root: GameTreeNode, depth: float):
+    def do_search_root(self, usi_info_writer: UsiInfoWriter, tree_root: GameTreeNode, depth: float):
         """
         深さ"depth"まで読んで木を更新する
         :return:
@@ -385,9 +385,7 @@ class ProbSearchPlayer(Engine):
         if len(pv) == 0:
             return "resign"
 
-        pv_str = " ".join([move.to_usi_string() for move in pv])
-        sys.stdout.write(f"info depth {depth} nodes {self.nodes_count} score cp {int(root_value * 600)} pv {pv_str}\n")
-        sys.stdout.flush()
+        usi_info_writer.write_pv(pv=pv, depth=int(depth), nodes=self.nodes_count, score_cp=int(root_value * 600))
         return pv[0].to_usi_string()
 
     def generate_tree_root(self) -> GameTreeNode:
@@ -403,12 +401,12 @@ class ProbSearchPlayer(Engine):
         return tree_root
 
     @util.release_gpu_memory_pool
-    def go(self, btime: Optional[int] = None, wtime: Optional[int] = None,
+    def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
         self.nodes_count = 0
         tree_root = self.generate_tree_root()
 
         move_str = "resign"
         for cur_depth in range(1, self.depth + 1):
-            move_str = self.do_search_root(tree_root, float(cur_depth))
+            move_str = self.do_search_root(usi_info_writer, tree_root, float(cur_depth))
         return move_str

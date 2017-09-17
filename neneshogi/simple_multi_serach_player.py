@@ -18,11 +18,12 @@ from typing import Dict, Optional, List
 
 from logging import getLogger
 
+from .usi_info_writer import UsiInfoWriter
+
 logger = getLogger(__name__)
 
 import numpy as np
 import chainer
-import sys
 
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
@@ -181,7 +182,7 @@ class SimpleMultiSearchPlayer(Engine):
             return np.array([], dtype=np.float32)
 
     @util.release_gpu_memory_pool
-    def go(self, btime: Optional[int] = None, wtime: Optional[int] = None,
+    def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
         # 木の作成
         logger.info("generating game tree")
@@ -202,6 +203,5 @@ class SimpleMultiSearchPlayer(Engine):
         if len(pv) == 0:
             return "resign"
 
-        pv_str = " ".join([move.to_usi_string() for move in pv])
-        sys.stdout.write(f"info depth 1 score cp {int(root_value * 600)} pv {pv_str}\n")
+        usi_info_writer.write_pv(pv=pv, depth=1, score_cp=int(root_value * 600))
         return pv[0].to_usi_string()

@@ -6,6 +6,8 @@
 from abc import ABCMeta, abstractmethod, abstractproperty
 from typing import Dict, Tuple, Optional
 
+from .usi_info_writer import UsiInfoWriter
+
 
 class Engine(metaclass=ABCMeta):
     @property
@@ -34,7 +36,7 @@ class Engine(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def go(self, btime: Optional[int]=None, wtime: Optional[int]=None,
+    def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int]=None, wtime: Optional[int]=None,
            byoyomi: Optional[int]=None, binc: Optional[int]=None, winc: Optional[int]=None) -> str:
         pass
 
