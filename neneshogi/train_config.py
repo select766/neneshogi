@@ -14,6 +14,7 @@ from chainer import training
 from chainer.training import extensions
 
 from . import config
+from . import util
 
 
 def load_trainer(path, gpu: int = -1) -> training.Trainer:
@@ -126,6 +127,7 @@ def load_model(model_path: str) -> chainer.Chain:
     :param model_path: ウェイトファイルのパス
     :return:
     """
+    model_path = util.strip_path(model_path)
     model_dir = os.path.dirname(os.path.dirname(model_path))
     code_dir = os.path.join(model_dir, "code")
 
