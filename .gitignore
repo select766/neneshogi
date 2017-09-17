@@ -109,3 +109,4 @@ ENV/
 # project specific
 /data/model/*
 !.gitkeep
+/player_bat/*copy*

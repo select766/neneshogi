@@ -15,12 +15,14 @@ from .zero_search_player import ZeroSearchPlayer
 from .one_search_player import OneSearchPlayer
 from .simple_multi_serach_player import SimpleMultiSearchPlayer
 from .narrow_search_player import NarrowSearchPlayer
+from .prob_search_player import ProbSearchPlayer
 
 engines = {"RandomPlayer": RandomPlayer,
            "ZeroSearchPlayer": ZeroSearchPlayer,
            "OneSearchPlayer": OneSearchPlayer,
            "SimpleMultiSearchPlayer": SimpleMultiSearchPlayer,
            "NarrowSearchPlayer": NarrowSearchPlayer,
+           "ProbSearchPlayer": ProbSearchPlayer,
            }
 
 
