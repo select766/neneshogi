@@ -10,6 +10,7 @@ logger = getLogger(__name__)
 
 from .position import Position
 from .engine import Engine
+from .usi_info_writer import UsiInfoWriter
 
 
 class RandomPlayer(Engine):
@@ -35,7 +36,7 @@ class RandomPlayer(Engine):
     def position(self, command: str):
         self.pos.set_usi_position(command)
 
-    def go(self, btime: Optional[int] = None, wtime: Optional[int] = None,
+    def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
         move_list = self.pos.generate_move_list()
         if len(move_list) == 0:
