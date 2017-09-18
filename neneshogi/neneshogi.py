@@ -16,6 +16,7 @@ from .one_search_player import OneSearchPlayer
 from .simple_multi_serach_player import SimpleMultiSearchPlayer
 from .narrow_search_player import NarrowSearchPlayer
 from .prob_search_player import ProbSearchPlayer
+from .randomized_softmax_search_player import RandomizedSoftmaxSearchPlayer
 
 engines = {"RandomPlayer": RandomPlayer,
            "ZeroSearchPlayer": ZeroSearchPlayer,
@@ -23,6 +24,7 @@ engines = {"RandomPlayer": RandomPlayer,
            "SimpleMultiSearchPlayer": SimpleMultiSearchPlayer,
            "NarrowSearchPlayer": NarrowSearchPlayer,
            "ProbSearchPlayer": ProbSearchPlayer,
+           "RandomizedSoftmaxSearchPlayer": RandomizedSoftmaxSearchPlayer
            }
 
 
