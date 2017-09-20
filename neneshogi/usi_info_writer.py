@@ -1,12 +1,13 @@
-import sys
-from typing import Optional, Iterable
+from typing import Optional, Iterable, Callable
 
 from .position import Move
 
 
 class UsiInfoWriter:
-    def __init__(self):
-        pass
+    lines_writer: Callable[[Iterable[str]], None]
+
+    def __init__(self, lines_writer: Callable[[Iterable[str]], None]):
+        self.lines_writer = lines_writer
 
     def write_pv(self, *, pv: Iterable[Move], depth: Optional[int] = None, seldepth: Optional[int] = None,
                  time: Optional[int] = None, nodes: Optional[int] = None, score_cp: Optional[int] = None,
@@ -35,10 +36,7 @@ class UsiInfoWriter:
         items.append("pv")
         items.extend([move.to_usi_string() for move in pv])
 
-        info_str = " ".join(items) + "\n"
-        sys.stdout.write(info_str)
-        sys.stdout.flush()
+        self.lines_writer([" ".join(items)])
 
     def write_string(self, message: str):
-        sys.stdout.write(f"info string {message}\n")
-        sys.stdout.flush()
+        self.lines_writer([f"info string {message}"])

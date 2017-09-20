@@ -30,7 +30,7 @@ class Usi:
         コマンドループ
         :return: quitコマンドが来たらメソッドが終了する
         """
-        info_writer = UsiInfoWriter()
+        info_writer = UsiInfoWriter(self._put_lines)
         for recv_line in sys.stdin:
             recv_line_nonl = recv_line.rstrip()
             logger.info(f"USI< {recv_line_nonl}")
