@@ -397,6 +397,17 @@ class RandomizedSoftmaxSearchPlayer(Engine):
             return "resign"
 
         usi_info_writer.write_pv(pv=pv, depth=int(iter_index), nodes=self.nodes_count, score_cp=int(root_value * 600))
+        # PV沿いの確率を表示
+        pv_path = tree_root
+        pv_items = []
+        for pv_move in pv:
+            idx = pv_path.legal_moves.index(pv_move)
+            prob = pv_path.legal_move_probabilities[idx]
+            max_prob = np.max(pv_path.legal_move_probabilities)
+            pv_items.append(pv_move.to_usi_string())
+            pv_items.append(f"{int(prob*100)}%/{int(max_prob*100)}%")
+            pv_path = pv_path.children[pv_move]
+        usi_info_writer.write_string(" ".join(pv_items))
         return pv[0].to_usi_string()
 
     def generate_initial_tree(self) -> GameTreeNode:
