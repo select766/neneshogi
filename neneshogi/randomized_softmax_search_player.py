@@ -86,6 +86,7 @@ class ValueProxyBatch:
     items: List[ValueProxy]
     resolve_count: int
     softmax_temperature: float
+    unique_pos_set: set
 
     def __init__(self, model: chainer.Chain, gpu: int, batchsize: int):
         self.items = []
@@ -94,8 +95,10 @@ class ValueProxyBatch:
         self.batchsize = batchsize
         self.resolve_count = 0
         self.softmax_temperature = 1.0
+        self.unique_pos_set = set()
 
     def append(self, item: ValueProxy):
+        self.unique_pos_set.add(hash(item._dnn_input.tobytes()))
         self.items.append(item)
         if len(self.items) >= self.batchsize:
             self.resolve()
@@ -372,6 +375,7 @@ class RandomizedSoftmaxSearchPlayer(Engine):
 
     def position(self, command: str):
         self.pos.set_usi_position(command)
+        logger.info(f"Position set to {self.pos.get_sfen()}")
 
     def do_search_root(self, usi_info_writer: UsiInfoWriter, tree_root: GameTreeNode, iter_index: int):
         """
@@ -408,6 +412,7 @@ class RandomizedSoftmaxSearchPlayer(Engine):
             pv_items.append(f"{int(prob*100)}%/{int(max_prob*100)}%")
             pv_path = pv_path.children[pv_move]
         usi_info_writer.write_string(" ".join(pv_items))
+        usi_info_writer.write_string(f"Unique pos: {len(self.value_proxy_batch.unique_pos_set)}")
         return pv[0].to_usi_string()
 
     def generate_initial_tree(self) -> GameTreeNode:
@@ -418,8 +423,8 @@ class RandomizedSoftmaxSearchPlayer(Engine):
         """
         tree_root = GameTreeNode(self.pos, None, None, self.value_proxy_batch)
         self.tmp_nodes.append(tree_root)
-        if not tree_root.is_mated:
-            self.tmp_nodes.extend(tree_root.expand_all_children(self.pos, self.value_proxy_batch))
+        #if not tree_root.is_mated:
+        #    self.tmp_nodes.extend(tree_root.expand_all_children(self.pos, self.value_proxy_batch))
 
         return tree_root
 
@@ -438,6 +443,7 @@ class RandomizedSoftmaxSearchPlayer(Engine):
     def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
         self.nodes_count = 0
+        self.value_proxy_batch.unique_pos_set.clear()
         tree_root = self.generate_initial_tree()
         self.resolve_and_attach()
 
