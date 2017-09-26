@@ -147,16 +147,36 @@ class GameTreeNode:
     is_leaf: bool
     is_mated: bool
     children: Dict[Move, "GameTreeNode"]
+    qsearch_children: Dict[Move, "GameTreeNode"]
+    last_move: Move
     pv: Move
     value_proxy: ValueProxy
 
-    def __init__(self, pos: Position, value_proxy_batch: ValueProxyBatch):
+    def __init__(self, pos: Position, last_move: Move, value_proxy_batch: ValueProxyBatch, qsearch_remain_depth: int):
         self.children = {}
         self.pv = None
+        self.last_move = last_move
         self.is_leaf = True
         self.is_mated = False
         self.value_proxy = ValueProxy(pos)
+        self.qsearch_children = {}
         value_proxy_batch.append(self.value_proxy)
+
+        # 静止探索のツリーを作成
+        if qsearch_remain_depth > 0:
+            move_list = pos.generate_move_list()
+            if pos.in_check():
+                # 王手の時はすべての手
+                move_list_filtered = move_list
+            else:
+                # 王手でないときは、last_moveと行先が同じ手
+                move_list_filtered = [move for move in move_list if move.move_to == last_move.move_to]
+            logger.info(f"qsearch moves: {len(move_list_filtered)}")
+            for move in move_list_filtered:
+                undo_info = pos.do_move(move)
+                child_node = GameTreeNode(pos, move, value_proxy_batch, qsearch_remain_depth - 1)
+                self.qsearch_children[move] = child_node
+                pos.undo_move(undo_info)
 
     def get_value(self) -> float:
         if self.is_mated:
@@ -164,8 +184,17 @@ class GameTreeNode:
             # 手番側からみた値なので、大きな負の値
             return -50.0
         if self.is_leaf:
+            # 静止探索ツリーの評価
             assert self.value_proxy.resolved
-            return self.value_proxy.value
+            max_move = None
+            max_value = self.value_proxy.value  # 何もしない状態の評価
+            for move, node in self.qsearch_children.items():
+                node_value = -node.get_value()
+                if node_value > max_value:
+                    max_value = node_value
+                    max_move = move
+            self.pv = max_move
+            return max_value
         else:
             # 子の評価値を反転して最大をとる(negamax)
             max_move = None
@@ -186,7 +215,10 @@ class GameTreeNode:
         if self.pv is None:
             return []
         else:
-            return [self.pv] + self.children[self.pv].get_pv()
+            if self.is_leaf:
+                return [self.pv] + self.qsearch_children[self.pv].get_pv()
+            else:
+                return [self.pv] + self.children[self.pv].get_pv()
 
     def _get_move_index(self, move: Move) -> int:
         """
@@ -235,7 +267,7 @@ class GameTreeNode:
         ary_index = ch * 81 + sq_move_to
         return ary_index
 
-    def expand_child(self, pos: Position, value_proxy_batch: ValueProxyBatch, expand_width: int):
+    def expand_child(self, pos: Position, value_proxy_batch: ValueProxyBatch, expand_width: int, qsearch_depth: int):
         """
         現在葉ノードである場合に、実現確率の高い子ノードを作成する。
         :param pos: このノードに対応するPosition
@@ -268,17 +300,22 @@ class GameTreeNode:
         for i in range(len(move_list)):
             move_index = self._get_move_index(rot_move_list[i])
             move_prob = self.value_proxy.child_move_probabilities[move_index]
-            score_moves.append((-move_prob, i, move_list[i]))  # iを入れることで、moveの比較が起こらないようにする
+            move = move_list[i]
+            # 駒を取る手は必ず入れる
+            if pos.board[move.move_to] != 0:
+                move_prob = 1.0
+            score_moves.append((-move_prob, i, move))  # iを入れることで、moveの比較が起こらないようにする
         score_moves.sort()  # move_probが大きい順に並び替え
 
         top_moves = [item[2] for item in score_moves[:expand_width]]  # type: List[Move]
         for move in top_moves:
             undo_info = pos.do_move(move)
-            child_node = GameTreeNode(pos, value_proxy_batch)
+            child_node = GameTreeNode(pos, move, value_proxy_batch, qsearch_depth)
             self.children[move] = child_node
             pos.undo_move(undo_info)
         self.is_leaf = False
         self.value_proxy = None  # もう静的評価値・方策は使わないので解放
+        self.qsearch_children = None  # 葉ノードではなくなったので静止探索データを解放
 
 
 class NarrowSearchPlayer(Engine):
@@ -289,6 +326,7 @@ class NarrowSearchPlayer(Engine):
     gpu: int
     value_proxy_batch: ValueProxyBatch
     expand_width: int
+    qsearch_depth: int
     nodes_count: int  # ある局面の探索開始からのノード数
 
     def __init__(self):
@@ -299,6 +337,7 @@ class NarrowSearchPlayer(Engine):
         self.batchsize = 256
         self.value_proxy_batch = None
         self.expand_width = 3
+        self.qsearch_depth = 0
         self.nodes_count = 0
 
     @property
@@ -313,12 +352,14 @@ class NarrowSearchPlayer(Engine):
         return {"model_path": "filename default <empty>",
                 "gpu": "spin default -1 min -1 max 0",
                 "depth": "spin default 1 min 1 max 5",
+                "qsearch_depth": "spin default 0 min 0 max 5",
                 "expand_width": "spin default 3 min 1 max 10"}
 
     def isready(self, options: Dict[str, str]):
         self.gpu = int(options["gpu"])
         self.depth = int(options["depth"])
         self.expand_width = int(options["expand_width"])
+        self.qsearch_depth = int(options["qsearch_depth"])
         self.model = load_model(options["model_path"])
         if self.gpu >= 0:
             chainer.cuda.get_device_from_id(self.gpu).use()
@@ -332,7 +373,7 @@ class NarrowSearchPlayer(Engine):
     def do_search_recursion(self, node: GameTreeNode):
         if node.is_leaf:
             # 葉なら、1つ深く展開
-            node.expand_child(self.pos, self.value_proxy_batch, self.expand_width)
+            node.expand_child(self.pos, self.value_proxy_batch, self.expand_width, self.qsearch_depth)
         else:
             # 内部ノードなら、1つ深いノードで再帰的に計算
             for move, child_node in node.children.items():
@@ -368,7 +409,7 @@ class NarrowSearchPlayer(Engine):
         ルートノードを作成し、方策を計算する
         :return:
         """
-        tree_root = GameTreeNode(self.pos, self.value_proxy_batch)
+        tree_root = GameTreeNode(self.pos, None, self.value_proxy_batch, 0)
         self.value_proxy_batch.resolve()
         return tree_root
 
