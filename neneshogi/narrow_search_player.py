@@ -101,6 +101,7 @@ class ValueProxyBatch:
     batchsize: int
     items: List[ValueProxy]
     resolve_count: int
+    softmax_temperature: float
 
     def __init__(self, model: chainer.Chain, gpu: int, batchsize: int):
         self.items = []
@@ -108,6 +109,7 @@ class ValueProxyBatch:
         self.gpu = gpu
         self.batchsize = batchsize
         self.resolve_count = 0
+        self.softmax_temperature = 1.0
 
     def append(self, item: ValueProxy):
         self.items.append(item)
@@ -128,7 +130,9 @@ class ValueProxyBatch:
                 if self.gpu >= 0:
                     dnn_input = chainer.cuda.to_gpu(dnn_input)
                 model_output_var_move, model_output_var_value = self.model.forward(dnn_input)
-                model_output_move = chainer.cuda.to_cpu(model_output_var_move.data)
+                model_output_var_move_softmax = chainer.functions.softmax(
+                    model_output_var_move * (1.0 / self.softmax_temperature))
+                model_output_move = chainer.cuda.to_cpu(model_output_var_move_softmax.data)
                 model_output_value = chainer.cuda.to_cpu(model_output_var_value.data)
                 # 進行をばらけさせるために評価値をすこしランダムにずらす
                 # TODO: ずらす幅の検証
@@ -193,6 +197,7 @@ class GameTreeNode:
                 if node_value > max_value:
                     max_value = node_value
                     max_move = move
+                    logger.info(f"qsearch pv")
             self.pv = max_move
             return max_value
         else:
@@ -304,6 +309,7 @@ class GameTreeNode:
             # 駒を取る手は必ず入れる
             if pos.board[move.move_to] != 0:
                 move_prob = 1.0
+                logger.info("capture move")
             score_moves.append((-move_prob, i, move))  # iを入れることで、moveの比較が起こらないようにする
         score_moves.sort()  # move_probが大きい順に並び替え
 
