@@ -107,6 +107,7 @@ ENV/
 .idea/workspace.xml
 
 # project specific
-/data/model/*
 !.gitkeep
+/data/model/*
 /player_bat/*copy*
+/data/bad_move_statistics/*

@@ -27,10 +27,10 @@ USIエンジン対応。
 import pickle
 import sys
 import os
-import csv
 import subprocess
 import argparse
 from typing import List
+from progressbar import ProgressBar
 
 
 class EngineConfig:
@@ -67,7 +67,6 @@ class Engine:
         engine_process.stdin.flush()
         while True:
             line = engine_process.stdout.readline()
-            print(line)
             if len(line) == 0:
                 raise Exception("Cannot initialize Engine")
             if line.startswith(b"readyok"):
@@ -170,14 +169,22 @@ def run_compare(args):
     teacher_engine = Engine(teacher_config)
     student_engine = Engine(student_config)
     compare_results = []
+    # プログレスバーを出したいので、あらかじめ要素数を計算
+    games = []
+    position_count = 0
     with open(args.kifu) as kifu_lines:
         for i, kifu_line in enumerate(kifu_lines):
             if args.games >= 0 and i >= args.games:
                 break
             moves = kifu_line.rstrip().split(" ")[2:]  # startpos moves 7g7f ...
-            for te in range(args.skipfirst, len(moves) - 1 - args.skiplast):  # 最後の手の後は詰んでいるので使えない
-                print(moves[:te])
-                compare_results.append(compare_engine(moves[:te], teacher_engine, student_engine))
+            position_count += max(len(moves) - 1 - args.skiplast - args.skipfirst, 0)
+            games.append(moves)
+    pb = ProgressBar(max_value=position_count)
+    for moves in games:
+        for te in range(args.skipfirst, len(moves) - 1 - args.skiplast):  # 最後の手の後は詰んでいるので使えない
+            compare_results.append(compare_engine(moves[:te], teacher_engine, student_engine))
+            pb.update(pb.value + 1)
+    pb.finish()
     teacher_engine.close()
     student_engine.close()
     with open(args.dst, "wb") as f:
