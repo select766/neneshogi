@@ -6,9 +6,11 @@ python -m neneshogi.neneshogi <engine name>
 
 import argparse
 import logging
+import os
 
 import chainer
 
+from . import config
 from .usi import Usi
 from .random_player import RandomPlayer
 from .zero_search_player import ZeroSearchPlayer
@@ -27,9 +29,12 @@ engines = {"RandomPlayer": RandomPlayer,
            "RandomizedSoftmaxSearchPlayer": RandomizedSoftmaxSearchPlayer
            }
 
+profile_path = None
 
 def main():
     logger = logging.getLogger("neneshogi")
+    if profile_path is not None:
+        logger.debug(f"Profile: {profile_path}")
     try:
         parser = argparse.ArgumentParser()
         parser.add_argument("engine", choices=list(engines.keys()))
@@ -49,4 +54,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if os.environ.get("NENESHOGI_PROFILE", "0") == "1":
+        import cProfile
+        import time
+        profile_path = os.path.join(config.PROFILE_DIR, f"cprofile_{time.strftime('%Y%m%d%H%M%S')}.bin")
+        cProfile.run('main()', filename=profile_path)
+    else:
+        main()

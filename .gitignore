@@ -111,3 +111,4 @@ ENV/
 /data/model/*
 /player_bat/*copy*
 /data/bad_move_statistics/*
+/data/profile/*
