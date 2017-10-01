@@ -3,28 +3,19 @@ from typing import List, Tuple
 import numpy as np
 cimport numpy as np
 
-class Color:
-    """
-    手番定数
-    """
+"""
+手番定数
+"""
+cdef enum Color:
     BLACK = 0  # 先手
     WHITE = 1  # 後手
     COLOR_NB = 2
 
-    @staticmethod
-    def invert(color: int) -> int:
-        """
-        手番の反転
-        :param color:
-        :return:
-        """
-        return 1 - color
 
-
-class Piece:
-    """
-    駒定数
-    """
+"""
+駒定数
+"""
+cdef enum Piece:
 
     # 駒種
     NO_PIECE = 0
@@ -86,105 +77,49 @@ class Piece:
     PIECE_HAND_ZERO = PAWN  # 手駒の駒種最小値
     PIECE_HAND_NB = KING  # 手駒の駒種最大値+1
 
-    PIECE_FROM_CHAR_TABLE = {"P": B_PAWN, "L": B_LANCE, "N": B_KNIGHT, "S": B_SILVER,
-                             "B": B_BISHOP, "R": B_ROOK, "G": B_GOLD, "K": B_KING,
-                             "+P": B_PRO_PAWN, "+L": B_PRO_LANCE, "+N": B_PRO_KNIGHT, "+S": B_PRO_SILVER,
-                             "+B": B_HORSE, "+R": B_DRAGON,
-                             "p": W_PAWN, "l": W_LANCE, "n": W_KNIGHT, "s": W_SILVER,
-                             "b": W_BISHOP, "r": W_ROOK, "g": W_GOLD, "k": W_KING,
-                             "+p": W_PRO_PAWN, "+l": W_PRO_LANCE, "+n": W_PRO_KNIGHT, "+s": W_PRO_SILVER,
-                             "+b": W_HORSE, "+r": W_DRAGON, }
-    CHAR_FROM_PIECE_TABLE = {v: k for k, v in PIECE_FROM_CHAR_TABLE.items()}
-
-    @staticmethod
-    def piece_from_char(c: str) -> int:
-        """
-        駒の文字から定数を計算、先手が大文字、後手が小文字
-        成り駒も考慮
-        :param c:
-        :return:
-        """
-        return Piece.PIECE_FROM_CHAR_TABLE[c]
-
-    @staticmethod
-    def char_from_piece(piece: int) -> str:
-        """
-        駒に対応する文字を返す、入力は駒種でも可(大文字が返る)
-        成り駒も考慮し、"+"が先頭に付加される
-        :param piece:
-        :return:
-        """
-        return Piece.CHAR_FROM_PIECE_TABLE[piece]
-
-    @staticmethod
-    def raw_pt_from_piece(piece: int) -> int:
-        """
-        駒から、成る前の駒種を計算
-        :param piece:
-        :return:
-        """
-        raw_pt = piece % Piece.PIECE_RAW_NB
-        if raw_pt == 0:
-            raw_pt = Piece.KING
-        return raw_pt
-
-    @staticmethod
-    def is_exist(piece: int) -> bool:
-        """
-        駒が存在するかどうか(空のマスでないか)を判定する
-        :param piece:
-        :return:
-        """
-        return piece > Piece.PIECE_ZERO
-
-    @staticmethod
-    def is_color(piece: int, color: int) -> bool:
-        """
-        駒が特定の色かどうか判定する
-        :param piece:
-        :param color:
-        :return:
-        """
-        if piece == Piece.PIECE_ZERO:
-            return False
-        return piece // Piece.PIECE_WHITE == color
-
-
-class Square:
+cdef int piece_is_exist(int piece):
     """
-    マス定数
-    筋*9+段
-    1筋を0、1段を0に割り当てる
+    駒が存在するかどうか(空のマスでないか)を判定する
+    :param piece:
+    :return:
     """
+    return piece > Piece.PIECE_ZERO
+
+"""
+マス定数
+筋*9+段
+1筋を0、1段を0に割り当てる
+"""
+cdef enum Square:
     SQ_NB = 81
 
-    @staticmethod
-    def from_file_rank(file: int, rank: int) -> int:
-        return file * 9 + rank
 
-    @staticmethod
-    def from_file_rank_if_valid(file: int, rank: int) -> Tuple[int, int]:
-        sq = file * 9 + rank
-        valid = file >= 0 and file < 9 and rank >= 0 and rank < 9
-        return sq, valid
+cdef int square_from_file_rank(int file, int rank):
+    return file * 9 + rank
 
-    @staticmethod
-    def file_of(sq: int) -> int:
-        """
-        筋を返す
-        :param sq:
-        :return:
-        """
-        return sq // 9
+cdef int square_from_file_rank_if_valid(int file, int rank):
+    valid = file >= 0 and file < 9 and rank >= 0 and rank < 9
+    if not valid:
+        return -1
+    sq = file * 9 + rank
+    return sq
 
-    @staticmethod
-    def rank_of(sq: int) -> int:
-        """
-        段を返す
-        :param sq:
-        :return:
-        """
-        return sq % 9
+
+cdef int square_file_of(int sq):
+    """
+    筋を返す
+    :param sq:
+    :return:
+    """
+    return sq // 9
+
+cdef int square_rank_of(int sq):
+    """
+    段を返す
+    :param sq:
+    :return:
+    """
+    return sq % 9
 
 _CHECK_ATTACK_DIRS = [(-1, -1), (0, -1), (1, -1),
                       (-1, 0), (1, 0),
@@ -236,8 +171,8 @@ def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
         if board[sq] == Piece.B_KING:
             black_king_sq = sq
             break
-    cdef int black_king_file = Square.file_of(black_king_sq)
-    cdef int black_king_rank = Square.rank_of(black_king_sq)
+    cdef int black_king_file = square_file_of(black_king_sq)
+    cdef int black_king_rank = square_rank_of(black_king_sq)
     cdef int x, y, attacker_file, attacker_rank, attacker_sq
     cdef int attacker_piece
     cdef int valid
@@ -245,8 +180,8 @@ def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
         x, y = _CHECK_ATTACK_DIRS[dir_i]
         attacker_file = black_king_file + x
         attacker_rank = black_king_rank + y
-        attacker_sq, valid = Square.from_file_rank_if_valid(attacker_file, attacker_rank)
-        if not valid:
+        attacker_sq = square_from_file_rank_if_valid(attacker_file, attacker_rank)
+        if attacker_sq < 0:
             continue
 
         attacker_piece = board[attacker_sq]
@@ -256,14 +191,14 @@ def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
         # マスが空なら、長い利きをチェック
         long_attack_pieces = _CHECK_LONG_ATTACK_PIECES[dir_i]
         while True:
-            if Piece.is_exist(attacker_piece):
+            if piece_is_exist(attacker_piece):
                 # 空白以外の駒があるなら利きが切れる
                 break
 
             attacker_file += x
             attacker_rank += y
-            attacker_sq, valid = Square.from_file_rank_if_valid(attacker_file, attacker_rank)
-            if not valid:
+            attacker_sq = square_from_file_rank_if_valid(attacker_file, attacker_rank)
+            if attacker_sq < 0:
                 break
             attacker_piece = board[attacker_sq]
             if attacker_piece in long_attack_pieces:
@@ -274,8 +209,8 @@ def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
     for x in [-1, 1]:
         attacker_file = black_king_file + x
         attacker_rank = black_king_rank - 2
-        attacker_sq, valid = Square.from_file_rank_if_valid(attacker_file, attacker_rank)
-        if not valid:
+        attacker_sq = square_from_file_rank_if_valid(attacker_file, attacker_rank)
+        if attacker_sq < 0:
             continue
 
         attacker_piece = board[attacker_sq]
