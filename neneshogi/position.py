@@ -5,6 +5,10 @@
 from typing import List, Tuple
 
 import numpy as np
+import pyximport
+
+pyximport.install()
+from . import position_acc
 
 
 class Color:
@@ -780,6 +784,9 @@ class Position:
             return rot_pos._in_check_black()
 
     def _in_check_black(self) -> bool:
+        return position_acc._in_check_black(self.board)
+
+    def _in_check_black_native(self) -> bool:
         """
         先手が王手された状態かどうかをチェックする。
         先手が指して、後手番状態で呼び出すことも可能。この場合、王手放置のチェックとなる。
