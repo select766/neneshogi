@@ -359,11 +359,13 @@ class RandomizedSoftmaxSearchPlayer(Engine):
         return {"model_path": "filename default <empty>",
                 "gpu": "spin default -1 min -1 max 0",
                 "depth": "spin default 1 min 1 max 5",
+                "batchsize": "spin default 256 min 1 max 1024",
                 "softmax_temperature": "string default 1"}
 
     def isready(self, options: Dict[str, str]):
         self.gpu = int(options["gpu"])
         self.depth = int(options["depth"])
+        self.batchsize = int(options["batchsize"])
         self.model = load_model(options["model_path"])
         self.softmax_temperature = float(options["softmax_temperature"])
         if self.gpu >= 0:
