@@ -1,4 +1,3 @@
-
 from typing import List, Tuple
 import numpy as np
 cimport numpy as np
@@ -121,38 +120,46 @@ cdef int square_rank_of(int sq):
     """
     return sq % 9
 
-_CHECK_ATTACK_DIRS = [(-1, -1), (0, -1), (1, -1),
-                      (-1, 0), (1, 0),
-                      (-1, 1), (0, 1), (1, 1)]
+cdef int _CHECK_ATTACK_DIRS[8][2]
+_CHECK_ATTACK_DIRS[0][:] = (-1, -1)
+_CHECK_ATTACK_DIRS[1][:] = (0, -1)
+_CHECK_ATTACK_DIRS[2][:] = (1, -1)
+_CHECK_ATTACK_DIRS[3][:] = (-1, 0)
+_CHECK_ATTACK_DIRS[4][:] = (1, 0)
+_CHECK_ATTACK_DIRS[5][:] = (-1, 1)
+_CHECK_ATTACK_DIRS[6][:] = (0, 1)
+_CHECK_ATTACK_DIRS[7][:] = (1, 1)
+
 # 先手玉の左上、上、右上、…に存在すると、王手を構成する後手の駒(短い利き)。
-_CHECK_SHORT_ATTACK_PIECES = [
-    [Piece.W_SILVER, Piece.W_BISHOP, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN, Piece.W_PRO_LANCE,
-     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON],  # 左上
-    [Piece.W_PAWN, Piece.W_LANCE, Piece.W_SILVER, Piece.W_ROOK, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN,
+cdef int _CHECK_SHORT_ATTACK_PIECES[8][13]
+_CHECK_SHORT_ATTACK_PIECES[0][:11]=    [Piece.W_SILVER, Piece.W_BISHOP, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN, Piece.W_PRO_LANCE,
+     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON, -1]  # 左上
+_CHECK_SHORT_ATTACK_PIECES[1][:13]=    [Piece.W_PAWN, Piece.W_LANCE, Piece.W_SILVER, Piece.W_ROOK, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN,
      Piece.W_PRO_LANCE,
-     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON],  # 上
-    [Piece.W_SILVER, Piece.W_BISHOP, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN, Piece.W_PRO_LANCE,
-     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON],  # 右上
-    [Piece.W_ROOK, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN, Piece.W_PRO_LANCE,
-     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON],  # 左
-    [Piece.W_ROOK, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN, Piece.W_PRO_LANCE,
-     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON],  # 右
-    [Piece.W_SILVER, Piece.W_BISHOP, Piece.W_KING, Piece.W_HORSE, Piece.W_DRAGON],  # 左下
-    [Piece.W_ROOK, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN, Piece.W_PRO_LANCE,
-     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON],  # 下
-    [Piece.W_SILVER, Piece.W_BISHOP, Piece.W_KING, Piece.W_HORSE, Piece.W_DRAGON],  # 右下
-]
+     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON,-1]  # 上
+_CHECK_SHORT_ATTACK_PIECES[2][:11]=    [Piece.W_SILVER, Piece.W_BISHOP, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN, Piece.W_PRO_LANCE,
+     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON,-1]  # 右上
+_CHECK_SHORT_ATTACK_PIECES[3][:10]=    [Piece.W_ROOK, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN, Piece.W_PRO_LANCE,
+     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON,-1]  # 左
+_CHECK_SHORT_ATTACK_PIECES[4][:10]=    [Piece.W_ROOK, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN, Piece.W_PRO_LANCE,
+     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON,-1]  # 右
+_CHECK_SHORT_ATTACK_PIECES[5][:6]=    [Piece.W_SILVER, Piece.W_BISHOP, Piece.W_KING, Piece.W_HORSE, Piece.W_DRAGON,-1]  # 左下
+_CHECK_SHORT_ATTACK_PIECES[6][:10]=    [Piece.W_ROOK, Piece.W_GOLD, Piece.W_KING, Piece.W_PRO_PAWN, Piece.W_PRO_LANCE,
+     Piece.W_PRO_KNIGHT, Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON,-1]  # 下
+_CHECK_SHORT_ATTACK_PIECES[7][:6]=    [Piece.W_SILVER, Piece.W_BISHOP, Piece.W_KING, Piece.W_HORSE, Piece.W_DRAGON,-1]  # 右下
+
 # 先手玉の左上、上、右上、…に存在すると、王手を構成する後手の駒(長い利き)。
-_CHECK_LONG_ATTACK_PIECES = [
-    [Piece.W_BISHOP, Piece.W_HORSE],  # 左上
-    [Piece.W_LANCE, Piece.W_ROOK, Piece.W_DRAGON],  # 上
-    [Piece.W_BISHOP, Piece.W_HORSE],  # 右上
-    [Piece.W_ROOK, Piece.W_DRAGON],  # 左
-    [Piece.W_ROOK, Piece.W_DRAGON],  # 右
-    [Piece.W_BISHOP, Piece.W_HORSE],  # 左下
-    [Piece.W_ROOK, Piece.W_DRAGON],  # 下
-    [Piece.W_BISHOP, Piece.W_HORSE],  # 右下
-]
+cdef int _CHECK_LONG_ATTACK_PIECES[8][4]
+
+_CHECK_LONG_ATTACK_PIECES[0][:3]=    [Piece.W_BISHOP, Piece.W_HORSE,-1]  # 左上
+_CHECK_LONG_ATTACK_PIECES[1][:4]=    [Piece.W_LANCE, Piece.W_ROOK, Piece.W_DRAGON,-1]  # 上
+_CHECK_LONG_ATTACK_PIECES[2][:3]=    [Piece.W_BISHOP, Piece.W_HORSE,-1]  # 右上
+_CHECK_LONG_ATTACK_PIECES[3][:3]=    [Piece.W_ROOK, Piece.W_DRAGON,-1]  # 左
+_CHECK_LONG_ATTACK_PIECES[4][:3]=    [Piece.W_ROOK, Piece.W_DRAGON,-1]  # 右
+_CHECK_LONG_ATTACK_PIECES[5][:3]=    [Piece.W_BISHOP, Piece.W_HORSE,-1]  # 左下
+_CHECK_LONG_ATTACK_PIECES[6][:3]=    [Piece.W_ROOK, Piece.W_DRAGON,-1]  # 下
+_CHECK_LONG_ATTACK_PIECES[7][:3]=    [Piece.W_BISHOP, Piece.W_HORSE,-1]  # 右下
+
 
 ctypedef np.uint8_t DTYPE_t
 def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
@@ -175,7 +182,8 @@ def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
     cdef int black_king_rank = square_rank_of(black_king_sq)
     cdef int x, y, attacker_file, attacker_rank, attacker_sq
     cdef int attacker_piece
-    cdef int valid
+    cdef int pt_i
+    cdef int pt_tmp
     for dir_i in range(8):
         x, y = _CHECK_ATTACK_DIRS[dir_i]
         attacker_file = black_king_file + x
@@ -185,11 +193,14 @@ def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
             continue
 
         attacker_piece = board[attacker_sq]
-        if attacker_piece in _CHECK_SHORT_ATTACK_PIECES[dir_i]:
-            # 短い利きが有効
-            return True
+        for pt_i in range(13):
+            pt_tmp = _CHECK_SHORT_ATTACK_PIECES[dir_i][pt_i]
+            if pt_tmp < 0:
+                break
+            if attacker_piece == pt_tmp:
+                # 短い利きが有効
+                return True
         # マスが空なら、長い利きをチェック
-        long_attack_pieces = _CHECK_LONG_ATTACK_PIECES[dir_i]
         while True:
             if piece_is_exist(attacker_piece):
                 # 空白以外の駒があるなら利きが切れる
@@ -201,9 +212,13 @@ def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
             if attacker_sq < 0:
                 break
             attacker_piece = board[attacker_sq]
-            if attacker_piece in long_attack_pieces:
-                # 長い利きが有効
-                return True
+            for pt_i in range(4):
+                pt_tmp = _CHECK_LONG_ATTACK_PIECES[dir_i][pt_i]
+                if pt_tmp < 0:
+                    break
+                if attacker_piece == pt_tmp:
+                    # 長い利きが有効
+                    return True
 
     # 桂馬の利きチェック
     for x in [-1, 1]:
