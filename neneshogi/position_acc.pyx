@@ -1,6 +1,7 @@
 
 from typing import List, Tuple
 import numpy as np
+cimport numpy as np
 
 class Color:
     """
@@ -162,7 +163,7 @@ class Square:
         return file * 9 + rank
 
     @staticmethod
-    def from_file_rank_if_valid(file: int, rank: int) -> Tuple[int, bool]:
+    def from_file_rank_if_valid(file: int, rank: int) -> Tuple[int, int]:
         sq = file * 9 + rank
         valid = file >= 0 and file < 9 and rank >= 0 and rank < 9
         return sq, valid
@@ -218,7 +219,8 @@ _CHECK_LONG_ATTACK_PIECES = [
     [Piece.W_BISHOP, Piece.W_HORSE],  # 右下
 ]
 
-def _in_check_black(board: np.ndarray) -> bool:
+ctypedef np.uint8_t DTYPE_t
+def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
     """
     先手が王手された状態かどうかをチェックする。
     先手が指して、後手番状態で呼び出すことも可能。この場合、王手放置のチェックとなる。
@@ -229,13 +231,16 @@ def _in_check_black(board: np.ndarray) -> bool:
     # 例えば、先手玉の1つ下に後手歩があれば王手。
     # 先手玉の右下に、他の駒に遮られずに角があれば王手。
     # 長い利きの場合、途中のマスがすべて空でなければならない。
-    black_king_sq = 0
+    cdef int black_king_sq = 0
     for sq in range(Square.SQ_NB):
         if board[sq] == Piece.B_KING:
             black_king_sq = sq
             break
-    black_king_file = Square.file_of(black_king_sq)
-    black_king_rank = Square.rank_of(black_king_sq)
+    cdef int black_king_file = Square.file_of(black_king_sq)
+    cdef int black_king_rank = Square.rank_of(black_king_sq)
+    cdef int x, y, attacker_file, attacker_rank, attacker_sq
+    cdef int attacker_piece
+    cdef int valid
     for dir_i in range(8):
         x, y = _CHECK_ATTACK_DIRS[dir_i]
         attacker_file = black_king_file + x
