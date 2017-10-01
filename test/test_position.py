@@ -55,7 +55,6 @@ class TestPosition(unittest.TestCase):
     def test_move_generation(self):
         """
         合法手生成のテスト
-        現状、先手番のときだけ行う
         :return:
         """
         for case in self.dataset:
