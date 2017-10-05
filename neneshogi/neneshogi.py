@@ -19,6 +19,7 @@ from .simple_multi_serach_player import SimpleMultiSearchPlayer
 from .narrow_search_player import NarrowSearchPlayer
 from .prob_search_player import ProbSearchPlayer
 from .randomized_softmax_search_player import RandomizedSoftmaxSearchPlayer
+from .alpha_beta_player import AlphaBetaPlayer
 
 engines = {"RandomPlayer": RandomPlayer,
            "ZeroSearchPlayer": ZeroSearchPlayer,
@@ -26,10 +27,12 @@ engines = {"RandomPlayer": RandomPlayer,
            "SimpleMultiSearchPlayer": SimpleMultiSearchPlayer,
            "NarrowSearchPlayer": NarrowSearchPlayer,
            "ProbSearchPlayer": ProbSearchPlayer,
-           "RandomizedSoftmaxSearchPlayer": RandomizedSoftmaxSearchPlayer
+           "RandomizedSoftmaxSearchPlayer": RandomizedSoftmaxSearchPlayer,
+           "AlphaBetaPlayer": AlphaBetaPlayer,
            }
 
 profile_path = None
+
 
 def main():
     logger = logging.getLogger("neneshogi")
@@ -57,6 +60,7 @@ if __name__ == "__main__":
     if os.environ.get("NENESHOGI_PROFILE", "0") == "1":
         import cProfile
         import time
+
         profile_path = os.path.join(config.PROFILE_DIR, f"cprofile_{time.strftime('%Y%m%d%H%M%S')}.bin")
         cProfile.run('main()', filename=profile_path)
     else:
