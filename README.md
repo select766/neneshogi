@@ -36,9 +36,11 @@ python -m unittest
 - pipにて以下のパッケージ
   - chainer (2.0系)
   - cupy
+  - graphviz
 - 将棋所
 
 ## 開発用
 - PyCharm
 - [Git](https://git-for-windows.github.io/)
-
+- [Graphviz](http://www.graphviz.org/Download_windows.php)
+  - PATHを手動で通す必要あり。 `C:\Program Files (x86)\Graphviz2.38\bin`
