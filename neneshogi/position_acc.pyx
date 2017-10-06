@@ -1,5 +1,6 @@
 from typing import List, Tuple
 import numpy as np
+cimport cython
 cimport numpy as np
 
 """
@@ -97,7 +98,7 @@ cdef int square_from_file_rank(int file, int rank):
     return file * 9 + rank
 
 cdef int square_from_file_rank_if_valid(int file, int rank):
-    valid = file >= 0 and file < 9 and rank >= 0 and rank < 9
+    cdef int valid = file >= 0 and file < 9 and rank >= 0 and rank < 9
     if not valid:
         return -1
     sq = file * 9 + rank
@@ -162,6 +163,7 @@ _CHECK_LONG_ATTACK_PIECES[7][:3]=    [Piece.W_BISHOP, Piece.W_HORSE,-1]  # 右�
 
 
 ctypedef np.uint8_t DTYPE_t
+@cython.boundscheck(False)
 def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
     """
     先手が王手された状態かどうかをチェックする。
@@ -174,6 +176,7 @@ def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
     # 先手玉の右下に、他の駒に遮られずに角があれば王手。
     # 長い利きの場合、途中のマスがすべて空でなければならない。
     cdef int black_king_sq = 0
+    cdef int sq
     for sq in range(Square.SQ_NB):
         if board[sq] == Piece.B_KING:
             black_king_sq = sq
@@ -221,7 +224,7 @@ def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
                     return True
 
     # 桂馬の利きチェック
-    for x in [-1, 1]:
+    for x in range(-1, 2, 2):#[-1, 1]:
         attacker_file = black_king_file + x
         attacker_rank = black_king_rank - 2
         attacker_sq = square_from_file_rank_if_valid(attacker_file, attacker_rank)
