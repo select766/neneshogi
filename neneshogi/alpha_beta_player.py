@@ -207,7 +207,6 @@ class GameTreeNode:
             else:
                 # 王手でないときは、last_moveと行先が同じ手
                 move_list_filtered = [move for move in move_list if move.move_to == last_move.move_to]
-            logger.info(f"qsearch moves: {len(move_list_filtered)}")
             for move in move_list_filtered:
                 undo_info = pos.do_move(move)
                 child_node = GameTreeNode(pos, move, value_proxy_batch, qsearch_remain_depth - 1)
@@ -229,7 +228,6 @@ class GameTreeNode:
                 if node_value > max_value:
                     max_value = node_value
                     max_move = move
-                    logger.info(f"qsearch pv")
             self.pv = max_move
             return max_value
         else:
@@ -342,7 +340,6 @@ class GameTreeNode:
             # 駒を取る手は必ず入れる
             if pos.board[move.move_to] != 0:
                 move_prob = 1.0
-                logger.info("capture move")
             score_moves.append((-move_prob, i, move))  # iを入れることで、moveの比較が起こらないようにする
         score_moves.sort()  # move_probが大きい順に並び替え
         self.children_order = [item[2] for item in score_moves]
