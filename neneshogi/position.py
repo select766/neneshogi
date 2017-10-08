@@ -253,6 +253,16 @@ class Position:
                 move_list.append(move)
             return move_list
 
+    _ROTATE_PIECE_TABLE = np.array([Piece.NO_PIECE, Piece.W_PAWN, Piece.W_LANCE, Piece.W_KNIGHT,
+                                    Piece.W_SILVER, Piece.W_BISHOP, Piece.W_ROOK, Piece.W_GOLD,
+                                    Piece.W_KING, Piece.W_PRO_PAWN, Piece.W_PRO_LANCE, Piece.W_PRO_KNIGHT,
+                                    Piece.W_PRO_SILVER, Piece.W_HORSE, Piece.W_DRAGON, Piece.W_QUEEN,
+                                    Piece.NO_PIECE, Piece.B_PAWN, Piece.B_LANCE, Piece.B_KNIGHT,
+                                    Piece.B_SILVER, Piece.B_BISHOP, Piece.B_ROOK, Piece.B_GOLD,
+                                    Piece.B_KING, Piece.B_PRO_PAWN, Piece.B_PRO_LANCE, Piece.B_PRO_KNIGHT,
+                                    Piece.B_PRO_SILVER, Piece.B_HORSE, Piece.B_DRAGON, Piece.B_QUEEN
+                                    ], dtype=np.uint8)
+
     def _rotate_position(self) -> "Position":
         """
         逆の手番から見た盤面を生成する。
@@ -260,14 +270,7 @@ class Position:
         :return:
         """
         rot = Position()
-        for sq in range(Square.SQ_NB):
-            piece = self.board[Square.SQ_NB - 1 - sq]  # 180°回して駒を取得
-            # 駒の手番を逆転
-            if piece >= Piece.W_PAWN:
-                piece -= Piece.PIECE_WHITE
-            elif piece >= Piece.B_PAWN:
-                piece += Piece.PIECE_WHITE
-            rot.board[sq] = piece
+        rot.board[:] = Position._ROTATE_PIECE_TABLE[self.board[::-1]]
         rot.hand[:] = self.hand[::-1, :]
         rot.side_to_move = Color.invert(self.side_to_move)
         return rot
@@ -352,7 +355,6 @@ class Position:
                           [(0, -1), (-1, 0), (1, 0), (0, 1)],  # 竜
                           ]
     _MAX_DROP_RANK_TABLE = [0, 1, 1, 2, 0, 0, 0, 0]
-
 
     def _generate_move_move(self) -> List[Move]:
         return position_acc._generate_move_move(self.board)
