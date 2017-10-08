@@ -46,7 +46,7 @@ class Usi:
                 resp_lines.append("usiok")
             elif cmd == "setoption":
                 # setoption name USI_Ponder value true
-                self.engine_options[tokens[2]] = tokens[4]
+                self.engine_options[tokens[2]] = tokens[4] if len(tokens) >= 5 else ""
             elif cmd == "isready":
                 self.engine.isready(self.engine_options)
                 resp_lines.append("readyok")

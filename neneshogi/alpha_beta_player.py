@@ -64,6 +64,7 @@ from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
 from .usi_info_writer import UsiInfoWriter
 from .train_config import load_model
+from .book import BookMove, Book
 from . import util
 
 
@@ -363,6 +364,7 @@ class AlphaBetaPlayer(Engine):
     value_proxy_batch: ValueProxyBatch
     qsearch_depth: int
     nodes_count: int  # ある局面の探索開始からのノード数
+    book: Book
 
     def __init__(self):
         self.pos = Position()
@@ -373,6 +375,7 @@ class AlphaBetaPlayer(Engine):
         self.value_proxy_batch = None
         self.qsearch_depth = 0
         self.nodes_count = 0
+        self.book = None
 
     @property
     def name(self):
@@ -384,6 +387,7 @@ class AlphaBetaPlayer(Engine):
 
     def get_options(self):
         return {"model_path": "filename default <empty>",
+                "book": "filename default book/standard_book.db",
                 "gpu": "spin default -1 min -1 max 0",
                 "depth": "spin default 1 min 1 max 5",
                 "qsearch_depth": "spin default 0 min 0 max 5"}
@@ -392,6 +396,10 @@ class AlphaBetaPlayer(Engine):
         self.gpu = int(options["gpu"])
         self.depth = int(options["depth"])
         self.qsearch_depth = int(options["qsearch_depth"])
+        book_path = options["book"]
+        if len(book_path) > 0:
+            self.book = Book()
+            self.book.load(util.strip_path(book_path))
         self.model = load_model(options["model_path"])
         if self.gpu >= 0:
             chainer.cuda.get_device_from_id(self.gpu).use()
@@ -461,6 +469,11 @@ class AlphaBetaPlayer(Engine):
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
         self.nodes_count = 0
 
+        if self.book is not None:
+            book_move = self.book.get_move(self.pos)
+            if book_move is not None:
+                book_move.write_pv(usi_info_writer)
+                return book_move.move.to_usi_string()
         move_str = "resign"
         for cur_depth in range(1, self.depth + 1):
             tree_root = self.generate_tree_root()
