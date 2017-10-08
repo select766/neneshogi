@@ -250,10 +250,6 @@ def _in_check_black(np.ndarray[DTYPE_t, ndim=1] board) -> bool:
 
     return False
 
-cdef struct Vec:
-    int x
-    int y
-
 _SHORT_ATTACK_TABLE_py = [[],
                        [(0, -1)],  # 歩
                        [],  # 香
@@ -319,7 +315,8 @@ for i, d in enumerate(_LONG_ATTACK_TABLE_py):
     for j, (x, y) in enumerate(d):
         _LONG_ATTACK_TABLE[i][j] = (x, y)
 
-_MAX_DROP_RANK_TABLE = [0, 1, 1, 2, 0, 0, 0, 0]
+cdef int _MAX_DROP_RANK_TABLE[8]
+_MAX_DROP_RANK_TABLE[:] = [0, 1, 1, 2, 0, 0, 0, 0]
 
 @cython.boundscheck(False)
 def _generate_move_move(np.ndarray[DTYPE_t, ndim=1] board) -> List[Move]:
@@ -385,5 +382,50 @@ def _generate_move_move(np.ndarray[DTYPE_t, ndim=1] board) -> List[Move]:
                     if piece_is_exist(to_piece):
                         # 白駒があるので、これ以上進めない
                         break
+
+    return possible_moves
+
+@cython.boundscheck(False)
+def _generate_move_drop(np.ndarray[DTYPE_t, ndim=1] board, np.ndarray[DTYPE_t, ndim=2] hand_both) -> List[Move]:
+    """
+    駒を打つ手をすべて生成する。
+    先手番を前提とする。
+    ただし、二歩・行き場のない駒を生じる手は除く。
+    :return:
+    """
+    possible_moves = []
+    cdef np.ndarray[DTYPE_t, ndim=1] hand
+    hand = hand_both[Color.BLACK]
+    cdef int pt
+
+    cdef int to_piece
+    # 二歩を避けるため、歩がすでにある筋を列挙
+    cdef int pawn_files[9]
+    for to_file in range(9):
+        pawn_files[to_file] = 0
+        for to_rank in range(9):
+            to_sq = square_from_file_rank(to_file, to_rank)
+            to_piece = board[to_sq]
+            if to_piece == Piece.B_PAWN:
+                pawn_files[to_file] = 1
+                break
+
+    for to_file in range(9):
+        for to_rank in range(9):
+            to_sq = square_from_file_rank(to_file, to_rank)
+            to_piece = board[to_sq]
+            if piece_is_exist(to_piece):
+                # 駒のある場所には打てない
+                continue
+
+            for pt in range(Piece.PIECE_HAND_ZERO, Piece.PIECE_HAND_NB):
+                if hand[pt - Piece.PIECE_HAND_ZERO] > 0:
+                    if pt == Piece.B_PAWN and pawn_files[to_file]:
+                        # 二歩
+                        continue
+                    max_drop_rank = _MAX_DROP_RANK_TABLE[pt]
+                    if to_rank < max_drop_rank:
+                        continue
+                    possible_moves.append(Move.make_move_drop(pt, to_sq))
 
     return possible_moves

@@ -421,6 +421,9 @@ class Position:
         return possible_moves
 
     def _generate_move_drop(self) -> List[Move]:
+        return position_acc._generate_move_drop(self.board, self.hand)
+
+    def _generate_move_drop_native(self) -> List[Move]:
         """
         駒を打つ手をすべて生成する。
         先手番を前提とする。
