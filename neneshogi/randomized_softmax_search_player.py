@@ -358,7 +358,7 @@ class RandomizedSoftmaxSearchPlayer(Engine):
     def get_options(self):
         return {"model_path": "filename default <empty>",
                 "gpu": "spin default -1 min -1 max 0",
-                "depth": "spin default 1 min 1 max 5",
+                "depth": "spin default 1 min 1 max 100",
                 "batchsize": "spin default 256 min 1 max 1024",
                 "softmax_temperature": "string default 1"}
 
