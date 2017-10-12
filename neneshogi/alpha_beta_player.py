@@ -65,6 +65,7 @@ from .engine import Engine
 from .usi_info_writer import UsiInfoWriter
 from .train_config import load_model
 from .book import BookMove, Book
+from .mate_searcher import MateSearcher, MateSearcherCommand, MateSearcherResponse
 from . import util
 
 
@@ -364,6 +365,7 @@ class AlphaBetaPlayer(Engine):
     qsearch_depth: int
     nodes_count: int  # ある局面の探索開始からのノード数
     book: Book
+    mate_searcher: MateSearcher
 
     def __init__(self):
         self.pos = Position()
@@ -375,6 +377,7 @@ class AlphaBetaPlayer(Engine):
         self.qsearch_depth = 0
         self.nodes_count = 0
         self.book = None
+        self.mate_searcher = None
 
     @property
     def name(self):
@@ -404,6 +407,8 @@ class AlphaBetaPlayer(Engine):
             chainer.cuda.get_device_from_id(self.gpu).use()
             self.model.to_gpu()
         self.value_proxy_batch = ValueProxyBatch(self.model, self.gpu, self.batchsize)
+        self.mate_searcher = MateSearcher()
+        self.mate_searcher.run()
         # TODO: ここで一度NNを走らせて、CUDAカーネルの初期化をさせたほうがよい
 
     def position(self, command: str):
@@ -474,7 +479,16 @@ class AlphaBetaPlayer(Engine):
                 book_move.write_pv(usi_info_writer)
                 return book_move.move.to_usi_string()
         move_str = "resign"
+        self.mate_searcher.stop_signal.value = 0
+        self.mate_searcher.command_queue.put(MateSearcherCommand.go(self.pos))
         for cur_depth in range(1, self.depth + 1):
             tree_root = self.generate_tree_root()
             move_str = self.do_search_root(usi_info_writer, tree_root, cur_depth)
+        self.mate_searcher.stop_signal.value = 1
+        mate_result = self.mate_searcher.response_queue.get()
+        logger.info(f"mate result: {mate_result.params}")
         return move_str
+
+    def gameover(self, result: str):
+        self.mate_searcher.quit()
+        self.mate_searcher = None
