@@ -20,6 +20,7 @@ from .narrow_search_player import NarrowSearchPlayer
 from .prob_search_player import ProbSearchPlayer
 from .randomized_softmax_search_player import RandomizedSoftmaxSearchPlayer
 from .alpha_beta_player import AlphaBetaPlayer
+from .monte_carlo_softmax_player import MonteCarloSoftmaxPlayer
 
 engines = {"RandomPlayer": RandomPlayer,
            "ZeroSearchPlayer": ZeroSearchPlayer,
@@ -29,6 +30,7 @@ engines = {"RandomPlayer": RandomPlayer,
            "ProbSearchPlayer": ProbSearchPlayer,
            "RandomizedSoftmaxSearchPlayer": RandomizedSoftmaxSearchPlayer,
            "AlphaBetaPlayer": AlphaBetaPlayer,
+           "MonteCarloSoftmaxPlayer": MonteCarloSoftmaxPlayer,
            }
 
 profile_path = None
