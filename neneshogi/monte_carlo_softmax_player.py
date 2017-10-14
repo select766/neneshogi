@@ -213,7 +213,7 @@ class GameTreeNode:
                 node_values.append(node_value)
             self.pv = max_move
             node_values = np.array(node_values, dtype=np.float32)
-            exp_values = np.exp(node_values / self.softmax_temperature)
+            exp_values = np.exp((node_values - np.max(node_values)) / self.softmax_temperature)
             self.value = np.sum(exp_values * node_values) / np.sum(exp_values)
         return self.value
 
@@ -250,7 +250,7 @@ class GameTreeNode:
             node_values.append(node_value)
             moves.append(move)
         node_values = np.array(node_values, dtype=np.float32)
-        exp_values = np.exp(node_values / self.softmax_temperature)
+        exp_values = np.exp((node_values - np.max(node_values)) / self.softmax_temperature)
         move_probs = exp_values / np.sum(exp_values)
         if best:
             chosen_move_index = np.argmax(move_probs)
