@@ -519,11 +519,27 @@ class MonteCarloSoftmaxPlayer(Engine):
         :param winc:
         :return:
         """
+        search_time = 0.0
+        if self.pos.side_to_move == Color.BLACK:
+            mytime = btime
+            myinc = binc
+        else:
+            mytime = wtime
+            myinc = winc
+
+        if mytime is not None:
+            if myinc is not None:
+                search_time += (mytime - myinc) / 1000.0 / 50 + myinc / 1000.0
+            else:
+                search_time += mytime / 1000.0 / 50
+        if byoyomi is not None:
+            search_time += byoyomi / 1000.0
+
         margin = 2.0
-        byoyomi_sec = byoyomi / 1000.0 if (byoyomi is not None) else 0.0
-        search_time = byoyomi_sec - margin
-        search_time = max(search_time, 2.0)
-        return search_time  # TODO: 残り時間からの計算
+        min_time = 2.0
+        search_time = max(search_time - margin, min_time)
+        logger.info(f"Scheduled search time: {search_time}sec")
+        return search_time
 
     @util.release_gpu_memory_pool
     def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int] = None, wtime: Optional[int] = None,
