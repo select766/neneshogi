@@ -31,6 +31,8 @@ from typing import Dict, Optional, List
 
 from logging import getLogger
 
+import time
+
 logger = getLogger(__name__)
 
 import numpy as np
@@ -506,9 +508,28 @@ class MonteCarloSoftmaxPlayer(Engine):
         self.value_proxy_batch.resolve()
         return tree_root
 
+    def calculate_search_time(self, btime: Optional[int], wtime: Optional[int],
+                              byoyomi: Optional[int], binc: Optional[int], winc: Optional[int]) -> float:
+        """
+        今回の思考時間を決定する。
+        :param btime:
+        :param wtime:
+        :param byoyomi:
+        :param binc:
+        :param winc:
+        :return:
+        """
+        margin = 2.0
+        byoyomi_sec = byoyomi / 1000.0 if (byoyomi is not None) else 0.0
+        search_time = byoyomi_sec - margin
+        search_time = max(search_time, 2.0)
+        return search_time  # TODO: 残り時間からの計算
+
     @util.release_gpu_memory_pool
     def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
+        self.search_end_time = time.time() + self.calculate_search_time(btime, wtime, byoyomi, binc, winc)
+
         self.nodes_count = 0
 
         if self.book is not None:
@@ -522,6 +543,9 @@ class MonteCarloSoftmaxPlayer(Engine):
         tree_root = self.generate_tree_root()
         for cur_depth in range(1, self.depth + 1):
             move_str = self.do_search_root(usi_info_writer, tree_root, cur_depth)
+            if time.time() >= self.search_end_time:
+                logger.info("search timeup")
+                break
         self.mate_searcher.stop_signal.value = 1
         mate_result = self.mate_searcher.response_queue.get()
         logger.info(f"mate result: {mate_result.params}")
