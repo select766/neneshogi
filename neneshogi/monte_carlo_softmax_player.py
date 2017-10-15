@@ -529,7 +529,7 @@ class MonteCarloSoftmaxPlayer(Engine):
 
         if mytime is not None:
             if myinc is not None:
-                search_time += (mytime - myinc) / 1000.0 / 50 + myinc / 1000.0
+                search_time += (mytime - myinc) / 1000.0 / 25 + myinc / 1000.0
             else:
                 search_time += mytime / 1000.0 / 50
         if byoyomi is not None:
