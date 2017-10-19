@@ -153,7 +153,8 @@ class ValueProxyBatch:
         self.resolve_count += len(self.items)
         self.items = []
         # なぜか確保したメモリが再使用されずout of memoryになる問題へのworkaround
-        chainer.cuda.memory_pool.free_all_blocks()
+        if self.gpu >= 0:
+            chainer.cuda.memory_pool.free_all_blocks()
 
 
 class GameTreeNode:
