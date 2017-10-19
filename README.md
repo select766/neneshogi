@@ -9,6 +9,11 @@ Python 3.6以上が必要(それ以前では、文法エラーとなる)。
 python setup.py develop
 ```
 
+cythonコンパイル(pyxファイルを更新するごとに必要)
+```
+python setup.py build_ext --inplace
+```
+
 # テスト
 ## 合法手生成のテストケース作成
 
