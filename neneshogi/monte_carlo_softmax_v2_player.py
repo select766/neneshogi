@@ -370,7 +370,8 @@ class MonteCarloSoftmaxV2Player(Engine):
         undo_stack = []
         is_pos_terminal = False
         new_move_pk_list = []  # 末端ノードから1手先の手と局面リスト。すでに置換表にあるものは除く。
-        while not is_pos_terminal:
+        depth = 0
+        while depth < 100:  # 千日手ループ回避
             moves = self.pos.generate_move_list()
             if len(moves) == 0:
                 # 詰み局面
@@ -400,6 +401,7 @@ class MonteCarloSoftmaxV2Player(Engine):
             move = moves[move_index]
             logger.info(f"move {move.to_usi_string()}")
             undo_stack.append(self.pos.do_move(move))
+            depth += 1
 
         # まだない子ノードそれぞれについて、静止探索ツリーを作成
         q_trees = []
@@ -456,7 +458,7 @@ class MonteCarloSoftmaxV2Player(Engine):
         undo_stack = []
         is_pos_terminal = False
         pv = []
-        while not is_pos_terminal:
+        while len(pv) < 100:  # 千日手ループ回避
             moves = self.pos.generate_move_list()
             if len(moves) == 0:
                 # 詰み局面
