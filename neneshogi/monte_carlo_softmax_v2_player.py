@@ -119,9 +119,11 @@ class NNSearchProcess:
         if pos_from_side.side_to_move == Color.WHITE:
             pos_from_side = pos_from_side._rotate_position()
         ary = np.zeros((61, 81), dtype=np.float32)
+        board = pos_from_side.board
+        hand = pos_from_side.hand
         # 盤上の駒
         for sq in range(Square.SQ_NB):
-            piece = pos_from_side.board[sq]
+            piece = board[sq]
             ch = -1
             if piece >= Piece.W_PAWN:
                 ch = piece - Piece.W_PAWN + 14
@@ -132,7 +134,7 @@ class NNSearchProcess:
         # 持ち駒
         for color in range(Color.COLOR_NB):
             for i in range(Piece.PIECE_HAND_NB - Piece.PIECE_HAND_ZERO):
-                hand_count = pos_from_side.hand[color][i]
+                hand_count = hand[color][i]
                 ch = color * 7 + 28 + i
                 ary[ch, :] = hand_count
         # 段・筋
