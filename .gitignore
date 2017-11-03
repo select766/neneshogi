@@ -116,5 +116,6 @@ ENV/
 /neneshogi/position_acc.c
 /neneshogi/position_acc.html
 /neneshogi/neneshogi_cpp.*
+!/neneshogi/neneshogi_cpp.pyd
 /neneshogi_cpp/x64
 .vs
