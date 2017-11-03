@@ -186,7 +186,7 @@ class Square:
         """
         return sq % 9
 
-from .neneshogi_cpp import Move
+from .neneshogi_cpp import Move, UndoMoveInfo
 #
 # class Move:
 #     """
@@ -270,10 +270,10 @@ from .neneshogi_cpp import Move
 #                int(self.is_drop) * 16384 + int(self.is_promote) * 32768
 
 
-class UndoMoveInfo:
-    board: np.ndarray
-    hand: np.ndarray
-
-    def __init__(self, pos: "Position"):
-        self.board = pos.board.copy()
-        self.hand = pos.hand.copy()
+# class UndoMoveInfo:
+#     board: np.ndarray
+#     hand: np.ndarray
+#
+#     def __init__(self, pos: "Position"):
+#         self.board = pos.board.copy()
+#         self.hand = pos.hand.copy()

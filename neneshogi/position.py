@@ -7,9 +7,9 @@ from typing import List, Tuple
 import numpy as np
 from .move import Color, Piece, Square, Move, UndoMoveInfo
 from . import position_acc
+from .neneshogi_cpp import Position as CPosition
 
-
-class Position:
+class Position(CPosition):
     """
     盤面を表現するクラス
     """
@@ -17,32 +17,33 @@ class Position:
     hand: np.ndarray  # 持ち駒((2,7)要素,np.uint8)
     side_to_move: int  # 手番
     game_ply: int  # 手数(開始局面で1)
-    # 平手開始局面の盤面
-    HIRATE_BOARD = np.array([18, 0, 17, 0, 0, 0, 1, 0, 2,
-                             19, 21, 17, 0, 0, 0, 1, 6, 3,
-                             20, 0, 17, 0, 0, 0, 1, 0, 4,
-                             23, 0, 17, 0, 0, 0, 1, 0, 7,
-                             24, 0, 17, 0, 0, 0, 1, 0, 8,
-                             23, 0, 17, 0, 0, 0, 1, 0, 7,
-                             20, 0, 17, 0, 0, 0, 1, 0, 4,
-                             19, 22, 17, 0, 0, 0, 1, 5, 3,
-                             18, 0, 17, 0, 0, 0, 1, 0, 2, ], dtype=np.uint8)
+    # # 平手開始局面の盤面
+    # HIRATE_BOARD = np.array([18, 0, 17, 0, 0, 0, 1, 0, 2,
+    #                          19, 21, 17, 0, 0, 0, 1, 6, 3,
+    #                          20, 0, 17, 0, 0, 0, 1, 0, 4,
+    #                          23, 0, 17, 0, 0, 0, 1, 0, 7,
+    #                          24, 0, 17, 0, 0, 0, 1, 0, 8,
+    #                          23, 0, 17, 0, 0, 0, 1, 0, 7,
+    #                          20, 0, 17, 0, 0, 0, 1, 0, 4,
+    #                          19, 22, 17, 0, 0, 0, 1, 5, 3,
+    #                          18, 0, 17, 0, 0, 0, 1, 0, 2, ], dtype=np.uint8)
 
     def __init__(self):
-        self.board = np.zeros((Square.SQ_NB,), dtype=np.uint8)
-        self.hand = np.zeros((Color.COLOR_NB, (Piece.PIECE_HAND_NB - Piece.PIECE_HAND_ZERO)), dtype=np.uint8)
-        self.side_to_move = Color.BLACK
-        self.game_ply = 1
+        super().__init__()
+        # self.board = np.zeros((Square.SQ_NB,), dtype=np.uint8)
+        # self.hand = np.zeros((Color.COLOR_NB, (Piece.PIECE_HAND_NB - Piece.PIECE_HAND_ZERO)), dtype=np.uint8)
+        # self.side_to_move = Color.BLACK
+        # self.game_ply = 1
 
-    def set_hirate(self):
-        """
-        平手開始局面をセットする
-        :return:
-        """
-        self.board[:] = Position.HIRATE_BOARD
-        self.hand[:] = 0
-        self.side_to_move = Color.BLACK
-        self.game_ply = 1
+    # def set_hirate(self):
+    #     """
+    #     平手開始局面をセットする
+    #     :return:
+    #     """
+    #     self.board[:] = Position.HIRATE_BOARD
+    #     self.hand[:] = 0
+    #     self.side_to_move = Color.BLACK
+    #     self.game_ply = 1
 
     def set_sfen(self, sfen: str) -> None:
         """
@@ -52,6 +53,7 @@ class Position:
         """
         board_str, color_str, hand_str, ply_str = sfen.split()
         board_ranks = board_str.split("/")
+        board = np.zeros((Square.SQ_NB,), dtype=np.uint8)
         for rank, rank_line in enumerate(board_ranks):
             file_from_left = 0
             is_promote = False
@@ -63,7 +65,7 @@ class Position:
                     # 数値の指す数だけ空のマス
                     for _ in range(int(token)):
                         sq = Square.from_file_rank(8 - file_from_left, rank)
-                        self.board[sq] = Piece.NO_PIECE
+                        board[sq] = Piece.NO_PIECE
                         file_from_left += 1
                 else:
                     # 駒
@@ -71,12 +73,14 @@ class Position:
                     if is_promote:
                         piece += Piece.PIECE_PROMOTE
                     sq = Square.from_file_rank(8 - file_from_left, rank)
-                    self.board[sq] = piece
+                    board[sq] = piece
                     file_from_left += 1
                 is_promote = False
             assert file_from_left == 9
+        self.set_board(board)
+        assert np.all(self.board == board)
 
-        self.hand[:] = 0
+        hand = np.zeros((Color.COLOR_NB, (Piece.PIECE_HAND_NB - Piece.PIECE_HAND_ZERO)), dtype=np.uint8)
         if hand_str != "-":
             num_piece_str = ""
             for token in hand_str:
@@ -87,8 +91,10 @@ class Position:
                     piece = Piece.piece_from_char(token)
                     piece_color = Color.WHITE if Piece.is_color(piece, Color.WHITE) else Color.BLACK
                     num_piece = int(num_piece_str) if len(num_piece_str) > 0 else 1
-                    self.hand[piece_color, Piece.raw_pt_from_piece(piece) - Piece.PIECE_HAND_ZERO] = num_piece
+                    hand[piece_color, Piece.raw_pt_from_piece(piece) - Piece.PIECE_HAND_ZERO] = num_piece
                     num_piece_str = ""
+        self.set_hand(hand)
+        assert np.all(self.hand == hand)
 
         self.side_to_move = Color.WHITE if color_str == "w" else Color.BLACK
         self.game_ply = int(ply_str)
@@ -102,13 +108,14 @@ class Position:
         # 盤面
         # SFENは段ごとに、左から右に走査する
         sfen = ""
+        board = self.board
         for y in range(9):
             if y > 0:
                 sfen += "/"
             blank_len = 0
             for x in range(9):
                 sq = (8 - x) * 9 + y
-                piece = self.board[sq]
+                piece = board[sq]
                 if piece != Piece.PIECE_ZERO:
                     if blank_len > 0:
                         sfen += str(blank_len)
@@ -128,8 +135,9 @@ class Position:
         # 持ち駒
         # 同じ局面・手数の時にSFENを完全一致させるため、飛、角、金、銀、桂、香、歩の順とする
         hand_pieces = ""
+        hand = self.hand
         for color in range(Color.COLOR_NB):
-            hand_for_color = self.hand[color]
+            hand_for_color = hand[color]
             piece_color_offset = color * Piece.PIECE_WHITE
             for pt in [Piece.ROOK, Piece.BISHOP, Piece.GOLD, Piece.SILVER, Piece.KNIGHT, Piece.LANCE, Piece.PAWN]:
                 piece_ct = hand_for_color[pt - Piece.PIECE_HAND_ZERO]
@@ -169,66 +177,66 @@ class Position:
                 move = Move.from_usi_string(move_str)
                 self.do_move(move)
 
-    def do_move(self, move: Move) -> UndoMoveInfo:
-        """
-        手を指して局面を進める
-        :param move:
-        :return: 局面を戻すために必要な情報
-        """
-        undo_move_info = UndoMoveInfo(self)
-        if move.is_drop:
-            # 駒打ち
-            # 持ち駒を減らす
-            self.hand[self.side_to_move, move.move_dropped_piece - Piece.PIECE_HAND_ZERO] -= 1
-            # 駒を置く
-            piece = move.move_dropped_piece
-            if self.side_to_move == Color.WHITE:
-                piece += Piece.PIECE_WHITE  # move_dropped_pieceは駒種
-            self.board[move.move_to] = piece
-        else:
-            # 駒の移動
-            piece = self.board[move.move_from]
-            captured_piece = self.board[move.move_to]
-            if captured_piece != Piece.PIECE_ZERO:
-                # 持ち駒を増やす
-                self.hand[self.side_to_move, Piece.raw_pt_from_piece(captured_piece) - Piece.PIECE_HAND_ZERO] += 1
-            self.board[move.move_from] = Piece.PIECE_ZERO
-            if move.is_promote:
-                piece += Piece.PIECE_PROMOTE
-            self.board[move.move_to] = piece
+    # def do_move(self, move: Move) -> UndoMoveInfo:
+    #     """
+    #     手を指して局面を進める
+    #     :param move:
+    #     :return: 局面を戻すために必要な情報
+    #     """
+    #     undo_move_info = UndoMoveInfo(self)
+    #     if move.is_drop:
+    #         # 駒打ち
+    #         # 持ち駒を減らす
+    #         self.hand[self.side_to_move, move.move_dropped_piece - Piece.PIECE_HAND_ZERO] -= 1
+    #         # 駒を置く
+    #         piece = move.move_dropped_piece
+    #         if self.side_to_move == Color.WHITE:
+    #             piece += Piece.PIECE_WHITE  # move_dropped_pieceは駒種
+    #         self.board[move.move_to] = piece
+    #     else:
+    #         # 駒の移動
+    #         piece = self.board[move.move_from]
+    #         captured_piece = self.board[move.move_to]
+    #         if captured_piece != Piece.PIECE_ZERO:
+    #             # 持ち駒を増やす
+    #             self.hand[self.side_to_move, Piece.raw_pt_from_piece(captured_piece) - Piece.PIECE_HAND_ZERO] += 1
+    #         self.board[move.move_from] = Piece.PIECE_ZERO
+    #         if move.is_promote:
+    #             piece += Piece.PIECE_PROMOTE
+    #         self.board[move.move_to] = piece
+    #
+    #     # 手番を逆転
+    #     self.side_to_move = Color.invert(self.side_to_move)
+    #
+    #     # 手数を加算
+    #     self.game_ply += 1
+    #     return undo_move_info
+    #
+    # def undo_move(self, undo_move_info: UndoMoveInfo) -> None:
+    #     """
+    #     局面を戻す
+    #     :param undo_move_info:
+    #     :return:
+    #     """
+    #     self.game_ply -= 1
+    #     self.side_to_move = Color.invert(self.side_to_move)
+    #     self.board[:] = undo_move_info.board
+    #     self.hand[:] = undo_move_info.hand
 
-        # 手番を逆転
-        self.side_to_move = Color.invert(self.side_to_move)
-
-        # 手数を加算
-        self.game_ply += 1
-        return undo_move_info
-
-    def undo_move(self, undo_move_info: UndoMoveInfo) -> None:
-        """
-        局面を戻す
-        :param undo_move_info:
-        :return:
-        """
-        self.game_ply -= 1
-        self.side_to_move = Color.invert(self.side_to_move)
-        self.board[:] = undo_move_info.board
-        self.hand[:] = undo_move_info.hand
-
-    def eq_board(self, other: "Position") -> bool:
-        """
-        駒の配置・持ち駒・手番が一致するかどうか調べる。
-        手数・指し手の履歴は考慮しない。
-        :param other:
-        :return:
-        """
-        if self.side_to_move != other.side_to_move:
-            return False
-        if not np.all(self.hand == other.hand):
-            return False
-        if not np.all(self.board == other.board):
-            return False
-        return True
+    # def eq_board(self, other: "Position") -> bool:
+    #     """
+    #     駒の配置・持ち駒・手番が一致するかどうか調べる。
+    #     手数・指し手の履歴は考慮しない。
+    #     :param other:
+    #     :return:
+    #     """
+    #     if self.side_to_move != other.side_to_move:
+    #         return False
+    #     if not np.all(self.hand == other.hand):
+    #         return False
+    #     if not np.all(self.board == other.board):
+    #         return False
+    #     return True
 
     def generate_move_list(self) -> List[Move]:
         """
@@ -270,8 +278,10 @@ class Position:
         :return:
         """
         rot = Position()
-        rot.board[:] = Position._ROTATE_PIECE_TABLE[self.board[::-1]]
-        rot.hand[:] = self.hand[::-1, :]
+        #rot.board[:] = Position._ROTATE_PIECE_TABLE[self.board[::-1]]
+        rot.set_board(Position._ROTATE_PIECE_TABLE[self.board[::-1]])
+        #rot.hand[:] = self.hand[::-1, :]
+        rot.set_hand(self.hand[::-1, :])
         rot.side_to_move = Color.invert(self.side_to_move)
         return rot
 
