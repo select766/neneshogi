@@ -115,3 +115,4 @@ ENV/
 /data/profile/*
 /neneshogi/position_acc.c
 /neneshogi/position_acc.html
+.vs

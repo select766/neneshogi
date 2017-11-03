@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27004.2002
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "neneshogi_cpp", "neneshogi_cpp.vcxproj", "{CAACF6F0-119F-4384-9BD0-57AC9708AE3A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CAACF6F0-119F-4384-9BD0-57AC9708AE3A}.Debug|x64.ActiveCfg = Debug|x64
+		{CAACF6F0-119F-4384-9BD0-57AC9708AE3A}.Debug|x64.Build.0 = Debug|x64
+		{CAACF6F0-119F-4384-9BD0-57AC9708AE3A}.Debug|x86.ActiveCfg = Debug|Win32
+		{CAACF6F0-119F-4384-9BD0-57AC9708AE3A}.Debug|x86.Build.0 = Debug|Win32
+		{CAACF6F0-119F-4384-9BD0-57AC9708AE3A}.Release|x64.ActiveCfg = Release|x64
+		{CAACF6F0-119F-4384-9BD0-57AC9708AE3A}.Release|x64.Build.0 = Release|x64
+		{CAACF6F0-119F-4384-9BD0-57AC9708AE3A}.Release|x86.ActiveCfg = Release|Win32
+		{CAACF6F0-119F-4384-9BD0-57AC9708AE3A}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {20C521C4-B413-4B74-92D8-F4A8469A0A59}
+	EndGlobalSection
+EndGlobal
