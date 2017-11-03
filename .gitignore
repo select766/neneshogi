@@ -115,4 +115,6 @@ ENV/
 /data/profile/*
 /neneshogi/position_acc.c
 /neneshogi/position_acc.html
+/neneshogi/neneshogi_cpp.*
+/neneshogi_cpp/x64
 .vs
