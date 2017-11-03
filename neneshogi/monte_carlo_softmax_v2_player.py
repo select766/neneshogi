@@ -431,6 +431,7 @@ class MonteCarloSoftmaxV2Player(Engine):
         # 静的評価値の登録
         for pk, sv in zip(nn_value.pos_keys, nn_value.static_values):
             self.ttable[pk] = TTValue(sv, None)
+            self.nodes_count += 1
         # 親ノードの更新
         undo_stack = nn_value.undo_stack
         pos = nn_value.parent_pos_key.get_pos()
@@ -540,7 +541,8 @@ class MonteCarloSoftmaxV2Player(Engine):
     @util.release_gpu_memory_pool
     def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int] = None, wtime: Optional[int] = None,
            byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
-        self.search_end_time = time.time() + self.calculate_search_time(btime, wtime, byoyomi, binc, winc)
+        self.search_start_time = time.time()
+        self.search_end_time = self.search_start_time + self.calculate_search_time(btime, wtime, byoyomi, binc, winc)
 
         self.nodes_count = 0
 
@@ -570,10 +572,15 @@ class MonteCarloSoftmaxV2Player(Engine):
                     break
             logger.info("queue pop end")
             pv = self.find_pv()
+            cur_time = time.time()
             if len(pv) > 0:
                 root_value = self.ttable[tree_root].value
-                usi_info_writer.write_pv(pv=pv, depth=len(pv), score_cp=int(root_value * 600))
-            if time.time() >= self.search_end_time:
+                usi_info_writer.write_pv(pv=pv,
+                                         depth=len(pv),
+                                         score_cp=int(root_value * 600),
+                                         nodes=self.nodes_count,
+                                         time=int((cur_time - self.search_start_time) * 1000))
+            if cur_time >= self.search_end_time:
                 logger.info("search timeup")
                 break
         # self.mate_searcher.stop_signal.value = 1
