@@ -94,6 +94,8 @@ class NNSearchProcess:
             eval_item = self.nn_queue.get()  # type: NNEvalItem
             if eval_item is None:
                 # signal of exit
+                logger.info("Received exit message")
+                self.value_queue.put(None)
                 break
             # TODO 静止探索
             # TODO バッチサイズだけ集める
@@ -595,10 +597,20 @@ class MonteCarloSoftmaxV2Player(Engine):
         return move_str
 
     def gameover(self, result: str):
-        logger.info("joining nn process")
-        self.nn_queue.put(None)
-        self.nn_search_process.join()
-        logger.info("joined nn process")
+        self._join_nn_process()
         # self.mate_searcher.quit()
         # self.mate_searcher = None
         self.ttable = None
+
+    def quit(self):
+        self._join_nn_process()
+
+    def _join_nn_process(self):
+        if self.nn_search_process is not None:
+            logger.info("joining nn process")
+            self.nn_queue.put(None)
+            while self.value_queue.get() is not None:
+                pass
+            self.nn_search_process.join()
+            logger.info("joined nn process")
+            self.nn_search_process = None
