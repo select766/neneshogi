@@ -147,6 +147,38 @@ void Position::undo_move(UndoMoveInfo undo_move_info)
 	_board[undo_move_info._to_sq] = undo_move_info._to_value;
 }
 
+void Position::copy_to(Position &other) const
+{
+	memcpy(&other, this, sizeof(Position)); //POD
+}
+
+// https://ja.wikipedia.org/wiki/Adler-32
+#define MOD_ADLER 65521
+
+uint32_t adler32(const uint8_t *data, size_t len) {
+	uint32_t a = 1, b = 0;
+
+	while (len > 0) {
+		size_t tlen = len > 5550 ? 5550 : len;
+		len -= tlen;
+		do {
+			a += *data++;
+			b += a;
+		} while (--tlen);
+
+		a %= MOD_ADLER;
+		b %= MOD_ADLER;
+	}
+
+	return (b << 16) | a;
+}
+
+
+uint32_t Position::hash() const
+{
+	return adler32(_board, 81) ^ adler32((uint8_t *)_hand, 14) ^ side_to_move;
+}
+
 bool Position::eq_board(Position & other)
 {
 	//駒の配置・持ち駒・手番が一致するかどうか調べる。

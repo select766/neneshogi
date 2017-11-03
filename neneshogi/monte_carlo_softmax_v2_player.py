@@ -181,18 +181,13 @@ class PositionKey:
 
     @staticmethod
     def _copy_pos(pos: Position) -> Position:
-        dst = Position()
-        dst.set_board(pos.board)
-        dst.set_hand(pos.hand)
-        dst.side_to_move = pos.side_to_move
-        dst.game_ply = pos.game_ply
-        return dst
+        return pos.copy()
 
     def __eq__(self, other: "PositionKey"):
         return self._pos.eq_board(other._pos)
 
     def __hash__(self):
-        return hash(self._pos.board.tobytes()) ^ hash(self._pos.hand.tobytes()) ^ self._pos.side_to_move
+        return self._pos.hash()
 
 
 class TTValue:

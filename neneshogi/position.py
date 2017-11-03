@@ -21,6 +21,11 @@ class Position(CPosition):
     def __init__(self):
         super().__init__()
 
+    def copy(self):
+        dst = Position()
+        self.copy_to(dst)
+        return dst
+
     def set_sfen(self, sfen: str) -> None:
         """
         SFEN形式の局面をセットする。
