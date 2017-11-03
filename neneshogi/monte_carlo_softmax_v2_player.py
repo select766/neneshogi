@@ -376,7 +376,12 @@ class MonteCarloSoftmaxV2Player(Engine):
             if len(moves) == 0:
                 # 詰み局面
                 self.ttable[PositionKey(self.pos)] = TTValue(-50.0, None)
-                # TODO: 親ノードに評価値を伝播
+                pk = PositionKey(self.pos)
+                if len(undo_stack) > 0:
+                    # ルート局面自体が詰みだと親局面が設定できない
+                    self.pos.undo_move(undo_stack.pop())
+                    self.value_queue.put(NNValueItem([pk], [-50.0],
+                                                     PositionKey(self.pos), copy.deepcopy(undo_stack)))
                 while len(undo_stack) > 0:
                     self.pos.undo_move(undo_stack.pop())
                 return False
