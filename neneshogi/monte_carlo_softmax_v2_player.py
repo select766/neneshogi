@@ -339,7 +339,7 @@ class MonteCarloSoftmaxV2Player(Engine):
             self.book = Book()
             self.book.load(util.strip_path(book_path))
         # NN処理プロセスの起動
-        self.nn_queue = multiprocessing.Queue(1)
+        self.nn_queue = multiprocessing.Queue(16)
         self.value_queue = multiprocessing.Queue()
         self.gpu = int(options["gpu"])
         nn_info = NNInfo(gpu=self.gpu, model_path=options["model_path"], batch_size=256)
