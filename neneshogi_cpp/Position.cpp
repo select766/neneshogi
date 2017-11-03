@@ -33,7 +33,7 @@ py::array_t<uint8_t> Position::get_board()
 			py::format_descriptor<uint8_t>::format(),
 			1,
 			{ 81 },
-			{sizeof(uint8_t)}
+			{ sizeof(uint8_t) }
 		)
 		);
 }
@@ -164,4 +164,509 @@ bool Position::eq_board(Position & other)
 		return false;
 	}
 	return true;
+}
+
+static const int _SHORT_ATTACK_TABLE[15][8][2] =
+{
+	{},
+	{ { 0, -1 } }, // 歩
+	{ {} }, // 香
+	{ { -1, -2 },{ 1, -2 } }, // 桂
+	{ { -1, -1 },{ 0,-1 },{ 1,-1 },{ -1,1 },{ 1,1 } },//銀
+	{},//角
+	{},//飛
+	{ { -1,-1 },{ 0,-1 },{ 1,-1 },{ -1,0 },{ 1,0 },{ 0,1 } },//金
+	{ { -1,-1 },{ 0,-1 },{ 1,-1 },{ -1,0 },{ 1,0 },{ -1,1 },{ 0,1 },{ 1,1 } },//玉
+	{ { -1,-1 },{ 0,-1 },{ 1,-1 },{ -1,0 },{ 1,0 },{ 0,1 } },//と
+	{ { -1,-1 },{ 0,-1 },{ 1,-1 },{ -1,0 },{ 1,0 },{ 0,1 } },//成香
+	{ { -1,-1 },{ 0,-1 },{ 1,-1 },{ -1,0 },{ 1,0 },{ 0,1 } },//成桂
+	{ { -1,-1 },{ 0,-1 },{ 1,-1 },{ -1,0 },{ 1,0 },{ 0,1 } },//成銀
+	{ { 0,-1 },{ -1,0 },{ 1,0 },{ 0,1 } },//馬
+	{ { -1,-1 },{ 1,-1 },{ -1,1 },{ 1,1 } },//竜
+};
+
+static const int _SHORT_ATTACK_TABLE_LEN[15] = {
+	0,1,0,2,5,0,0,6,8,
+	6,6,6,6,4,4
+};
+
+static const int _MAX_NON_PROMOTE_RANK_TABLE[15] = {
+	0,
+	3,  // 歩(必ず成る)
+	2,  // 香(2段目では必ず成る)
+	2,  // 桂
+	0,  // 銀
+	3,  // 角(必ず成る)
+	3,  // 飛(必ず成る)
+	0,  // 金
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+	0,
+};
+
+static const int _LONG_ATTACK_TABLE[15][4][2] = {
+	{},
+	{},  // 歩
+	{ { 0, -1 } },  // 香
+	{},  // 桂
+	{},  // 銀
+	{ { -1, -1 },{ 1, -1 },{ -1, 1 },{ 1, 1 } },  // 角
+	{ { 0, -1 },{ -1, 0 },{ 1, 0 },{ 0, 1 } },  // 飛
+	{},  // 金
+	{},  // 玉
+	{},  // と
+	{},  // 成香
+	{},  // 成桂
+	{},  // 成銀
+	{ { -1, -1 },{ 1, -1 },{ -1, 1 },{ 1, 1 } },  // 馬
+	{ { 0, -1 },{ -1, 0 },{ 1, 0 },{ 0, 1 } },  // 竜
+};
+
+static const int _LONG_ATTACK_TABLE_LEN[15] = {
+	0,0,1,0,0,4,4,0,0,
+	0,0,0,0,4,4
+};
+
+static const int _MAX_DROP_RANK_TABLE[8] = {
+	0,1,1,2,0,0,0,0
+};
+
+/*
+盤上の駒を動かす手をすべて生成する。
+先手番を前提とする。
+ただし、香車の2段目・歩・角・飛の不成りおよび行き場のない駒を生じる手は除く。
+*/
+void Position::_generate_move_move(std::vector<Move>& move_list)
+{
+	for (int from_file = 0; from_file < 9; from_file++)
+	{
+		for (int from_rank = 0; from_rank < 9; from_rank++)
+		{
+			int from_sq = Square::from_file_rank(from_file, from_rank);
+			uint8_t from_piece = _board[from_sq];
+			if (!Piece::is_color(from_piece, Color::BLACK))
+			{
+				continue;
+			}
+			bool can_promote = from_piece <= Piece::B_ROOK;
+			int max_non_promote_rank = _MAX_NON_PROMOTE_RANK_TABLE[from_piece];
+			// 短い利きの処理
+			for (int short_attack_i = 0; short_attack_i < _SHORT_ATTACK_TABLE_LEN[from_piece]; short_attack_i++)
+			{
+				int x = _SHORT_ATTACK_TABLE[from_piece][short_attack_i][0];
+				int y = _SHORT_ATTACK_TABLE[from_piece][short_attack_i][1];
+				int to_file = from_file + x;
+				int to_rank = from_rank + y;
+				// 盤内確認
+				int to_sq = Square::from_file_rank_if_valid(to_file, to_rank);
+				if (to_sq < 0)
+				{
+					continue;
+				}
+				uint8_t to_piece = _board[to_sq];
+				// 自分の駒があるところには進めない
+				if (Piece::is_color(to_piece, Color::BLACK))
+				{
+					continue;
+				}
+				if (to_rank >= max_non_promote_rank)
+				{
+					// 行き場のない駒にはならない(&無意味な不成ではない)
+					move_list.push_back(Move::make_move(from_sq, to_sq, false));
+				}
+				if (can_promote && (from_rank < 3 || to_rank < 3))
+				{
+					// 成れる駒で、成る条件を満たす
+					move_list.push_back(Move::make_move(from_sq, to_sq, true));
+				}
+			}
+
+			//長い利きの処理
+			for (int long_attack_i = 0; long_attack_i < _LONG_ATTACK_TABLE_LEN[from_piece]; long_attack_i++)
+			{
+				int x = _LONG_ATTACK_TABLE[from_piece][long_attack_i][0];
+				int y = _LONG_ATTACK_TABLE[from_piece][long_attack_i][1];
+				int to_file = from_file;
+				int to_rank = from_rank;
+				while (true)
+				{
+					to_file += x;
+					to_rank += y;
+					int to_sq = Square::from_file_rank_if_valid(to_file, to_rank);
+					if (to_sq < 0)
+					{
+						break;
+					}
+					uint8_t to_piece = _board[to_sq];
+					if (Piece::is_color(to_piece, Color::BLACK))
+					{
+						// 自分の駒があるところには進めない
+						break;
+					}
+					if (to_rank >= max_non_promote_rank && from_rank >= max_non_promote_rank)
+					{
+						// 成って損がないのに成らない状況以外(角・飛)
+						move_list.push_back(Move::make_move(from_sq, to_sq, false));
+					}
+					if (can_promote && (from_rank < 3 || to_rank < 3))
+					{
+						// 成れる駒で、成る条件を満たす
+						move_list.push_back(Move::make_move(from_sq, to_sq, true));
+					}
+					if (Piece::is_exist(to_piece))
+					{
+						// 白駒があるので、これ以上進めない
+						break;
+					}
+
+				}
+			}
+		}
+	}
+}
+
+/*
+駒を打つ手をすべて生成する。
+先手番を前提とする。
+ただし、二歩・行き場のない駒を生じる手は除く。
+*/
+void Position::_generate_move_drop(std::vector<Move>& move_list)
+{
+
+	// 二歩を避けるため、歩がすでにある筋を列挙
+	bool pawn_files[9];
+	for (int to_file = 0; to_file < 9; to_file++)
+	{
+		pawn_files[to_file] = false;
+		for (int to_rank = 0; to_rank < 9; to_rank++)
+		{
+			int to_sq = Square::from_file_rank(to_file, to_rank);
+			uint8_t to_piece = _board[to_sq];
+			if (to_piece == Piece::B_PAWN)
+			{
+				pawn_files[to_file] = true;
+				break;
+			}
+		}
+	}
+
+	for (int to_file = 0; to_file < 9; to_file++)
+	{
+		for (int to_rank = 0; to_rank < 9; to_rank++)
+		{
+			int to_sq = Square::from_file_rank(to_file, to_rank);
+			uint8_t to_piece = _board[to_sq];
+			if (Piece::is_exist(to_piece))
+			{
+				// 駒のある場所には打てない
+				continue;
+			}
+
+			for (uint8_t pt = Piece::PIECE_HAND_ZERO; pt < Piece::PIECE_HAND_NB; pt++)
+			{
+				if (_hand[0][pt - Piece::PIECE_HAND_ZERO] > 0)
+				{
+					if (pt == Piece::B_PAWN && pawn_files[to_file])
+					{
+						// 二歩
+						continue;
+					}
+
+					int max_drop_rank = _MAX_DROP_RANK_TABLE[pt];
+					if (to_rank < max_drop_rank)
+					{
+						continue;
+					}
+
+					move_list.push_back(Move::make_move_drop(pt, to_sq));
+				}
+			}
+		}
+	}
+}
+
+std::vector<Move> Position::generate_move_list()
+{
+	if (side_to_move == Color::BLACK)
+	{
+		return _generate_move_list_black();
+	}
+	else
+	{
+		rotate_position_inplace();
+		std::vector<Move> move_list;
+		for (Move &rot_move : _generate_move_list_black())
+		{
+			int to_sq = Square::SQ_NB - 1 - rot_move._move_to;
+			if (rot_move._is_drop)
+			{
+				move_list.push_back(Move::make_move_drop(rot_move._move_dropped_piece, to_sq));
+			}
+			else
+			{
+				int from_sq = Square::SQ_NB - 1 - rot_move._move_from;
+				move_list.push_back(Move::make_move(from_sq, to_sq, rot_move._is_promote));
+			}
+		}
+		rotate_position_inplace();
+		return move_list;
+	}
+}
+
+
+
+std::vector<Move> Position::_generate_move_list_black()
+{
+	std::vector<Move> possible_list;
+	_generate_move_move(possible_list);
+	_generate_move_drop(possible_list);
+	std::vector<Move> legal_list;
+	for (Move &m : possible_list)
+	{
+		bool legal = true;
+		auto undo_info = do_move(m);
+		// 王手放置チェック
+		if (_in_check_black())
+		{
+			// 後手番になっているのに先手が王手をかけられている
+			legal = false;
+		}
+		// 打ち歩詰めチェック
+		if (legal && m._is_drop && m._move_dropped_piece == Piece::PAWN)
+		{
+			/*
+			王手放置のときにチェックすると、玉を取る手が生成されてバグる
+			現在の手番(後手)が詰んでいるとき、打ち歩詰め
+			玉の頭に打った時だけ判定すればよい
+			*/
+			int white_king_check_pos = m._move_to - 1; // 1段目に打つ手は生成しないので、必ず盤内
+			if (_board[white_king_check_pos] == Piece::W_KING)
+			{
+				auto ml = generate_move_list();
+				if (ml.empty())
+				{
+					legal = false;
+				}
+			}
+
+		}
+		undo_move(undo_info);
+		if (legal)
+		{
+			legal_list.push_back(m);
+		}
+	}
+
+	return legal_list;
+}
+
+bool Position::in_check()
+{
+	if (side_to_move == Color::BLACK)
+	{
+		return _in_check_black();
+	}
+	else
+	{
+		rotate_position_inplace();
+		bool ret = _in_check_black();
+		rotate_position_inplace();
+		return ret;
+	}
+}
+
+static const int _CHECK_ATTACK_DIRS[8][2] = {
+	{-1,-1},
+	{0,-1},
+	{1,-1},
+	{-1,0},
+	{1,0},
+	{-1,1},
+	{0,1},
+	{1,1}
+};
+
+// 先手玉の左上、上、右上、…に存在すると、王手を構成する後手の駒(短い利き)。
+static const int _CHECK_SHORT_ATTACK_PIECES[8][13] = {
+	{ Piece::W_SILVER, Piece::W_BISHOP, Piece::W_GOLD, Piece::W_KING, Piece::W_PRO_PAWN, Piece::W_PRO_LANCE,
+	Piece::W_PRO_KNIGHT, Piece::W_PRO_SILVER, Piece::W_HORSE, Piece::W_DRAGON, -1 },  // 左上
+	{ Piece::W_PAWN, Piece::W_LANCE, Piece::W_SILVER, Piece::W_ROOK, Piece::W_GOLD, Piece::W_KING, Piece::W_PRO_PAWN,
+	Piece::W_PRO_LANCE,
+	Piece::W_PRO_KNIGHT, Piece::W_PRO_SILVER, Piece::W_HORSE, Piece::W_DRAGON,-1 },  // 上
+	{ Piece::W_SILVER, Piece::W_BISHOP, Piece::W_GOLD, Piece::W_KING, Piece::W_PRO_PAWN, Piece::W_PRO_LANCE,
+	Piece::W_PRO_KNIGHT, Piece::W_PRO_SILVER, Piece::W_HORSE, Piece::W_DRAGON,-1 },  // 右上
+	{ Piece::W_ROOK, Piece::W_GOLD, Piece::W_KING, Piece::W_PRO_PAWN, Piece::W_PRO_LANCE,
+	Piece::W_PRO_KNIGHT, Piece::W_PRO_SILVER, Piece::W_HORSE, Piece::W_DRAGON,-1 },  // 左
+	{ Piece::W_ROOK, Piece::W_GOLD, Piece::W_KING, Piece::W_PRO_PAWN, Piece::W_PRO_LANCE,
+	Piece::W_PRO_KNIGHT, Piece::W_PRO_SILVER, Piece::W_HORSE, Piece::W_DRAGON,-1 },  // 右
+	{ Piece::W_SILVER, Piece::W_BISHOP, Piece::W_KING, Piece::W_HORSE, Piece::W_DRAGON,-1 },  // 左下
+	{ Piece::W_ROOK, Piece::W_GOLD, Piece::W_KING, Piece::W_PRO_PAWN, Piece::W_PRO_LANCE,
+	Piece::W_PRO_KNIGHT, Piece::W_PRO_SILVER, Piece::W_HORSE, Piece::W_DRAGON,-1 },  // 下
+	{ Piece::W_SILVER, Piece::W_BISHOP, Piece::W_KING, Piece::W_HORSE, Piece::W_DRAGON,-1 },  // 右下
+};
+
+// 先手玉の左上、上、右上、…に存在すると、王手を構成する後手の駒(長い利き)。
+static const int _CHECK_LONG_ATTACK_PIECES[8][4] = {
+	{ Piece::W_BISHOP, Piece::W_HORSE,-1 },  // 左上
+	{ Piece::W_LANCE, Piece::W_ROOK, Piece::W_DRAGON,-1 },  // 上
+	{ Piece::W_BISHOP, Piece::W_HORSE,-1 },  // 右上
+	{ Piece::W_ROOK, Piece::W_DRAGON,-1 },  // 左
+	{ Piece::W_ROOK, Piece::W_DRAGON,-1 },  // 右
+	{ Piece::W_BISHOP, Piece::W_HORSE,-1 },  // 左下
+	{ Piece::W_ROOK, Piece::W_DRAGON,-1 },  // 下
+	{ Piece::W_BISHOP, Piece::W_HORSE,-1 },  // 右下
+};
+
+/*
+先手が王手された状態かどうかをチェックする。
+先手が指して、後手番状態で呼び出すことも可能。この場合、王手放置のチェックとなる。
+*/
+bool Position::_in_check_black()
+{
+	/*
+	先手玉からみて各方向に後手の駒があれば、王手されていることになる。
+	例えば、先手玉の1つ上(y-方向)に後手歩があれば王手。
+	先手玉の右下に、他の駒に遮られずに角があれば王手。
+	長い利きの場合、途中のマスがすべて空でなければならない。
+	*/
+
+	int bk_sq = 0;
+	for (int sq = 0; sq < Square::SQ_NB; sq++)
+	{
+		if (_board[sq] == Piece::B_KING)
+		{
+			bk_sq = sq;
+			break;
+		}
+	}
+
+	int bk_file = Square::file_of(bk_sq);
+	int bk_rank = Square::rank_of(bk_sq);
+	for (int dir_i = 0; dir_i < 8; dir_i++)
+	{
+		int x = _CHECK_ATTACK_DIRS[dir_i][0];
+		int y = _CHECK_ATTACK_DIRS[dir_i][1];
+		int att_file = bk_file + x;//attacker's file
+		int att_rank = bk_rank + y;
+		int att_sq = Square::from_file_rank_if_valid(att_file, att_rank);
+		if (att_sq < 0)
+		{
+			continue;
+		}
+
+		uint8_t att_piece = _board[att_sq];
+		if (Piece::is_exist(att_piece))
+		{
+			// 隣に駒があるなら、それが玉に効く種類かどうか判定
+			for (int pt_i = 0; pt_i < 13; pt_i++)
+			{
+				int pt_tmp = _CHECK_SHORT_ATTACK_PIECES[dir_i][pt_i];
+				if (pt_tmp < 0)
+				{
+					break;
+				}
+				if (att_piece == pt_tmp)
+				{
+					// 短い利きが有効
+					return true;
+				}
+			}
+		}
+		else
+		{
+			// マスが空なら、長い利きをチェック
+			while (true)
+			{
+				att_file += x;
+				att_rank += y;
+				att_sq = Square::from_file_rank_if_valid(att_file, att_rank);
+				if (att_sq < 0)
+				{
+					break;
+				}
+				att_piece = _board[att_sq];
+				for (int pt_i = 0; pt_i < 4; pt_i++)
+				{
+					int pt_tmp = _CHECK_LONG_ATTACK_PIECES[dir_i][pt_i];
+					if (pt_tmp < 0)
+					{
+						break;
+					}
+					if (att_piece == pt_tmp)
+					{
+						// 長い利きが有効
+						return true;
+					}
+				}
+				if (Piece::is_exist(att_piece))
+				{
+					// 空白以外の駒があるなら利きが切れる
+					break;
+				}
+			}
+		}
+	}
+
+	// 桂馬の利きチェック
+	for (int x = -1; x < 2; x += 2)//-1,1
+	{
+		int att_file = bk_file + x;
+		int att_rank = bk_rank - 2;
+		int att_sq = Square::from_file_rank_if_valid(att_file, att_rank);
+		if (att_sq < 0)
+		{
+			continue;
+		}
+
+		uint8_t att_piece = _board[att_sq];
+		if (att_piece == Piece::W_KNIGHT)
+		{
+			// 桂馬がいる
+			return true;
+		}
+	}
+	return false;
+}
+
+static const int _ROTATE_PIECE_TABLE[] = {
+	Piece::NO_PIECE, Piece::W_PAWN, Piece::W_LANCE, Piece::W_KNIGHT,
+	Piece::W_SILVER, Piece::W_BISHOP, Piece::W_ROOK, Piece::W_GOLD,
+	Piece::W_KING, Piece::W_PRO_PAWN, Piece::W_PRO_LANCE, Piece::W_PRO_KNIGHT,
+	Piece::W_PRO_SILVER, Piece::W_HORSE, Piece::W_DRAGON, Piece::W_QUEEN,
+	Piece::NO_PIECE, Piece::B_PAWN, Piece::B_LANCE, Piece::B_KNIGHT,
+	Piece::B_SILVER, Piece::B_BISHOP, Piece::B_ROOK, Piece::B_GOLD,
+	Piece::B_KING, Piece::B_PRO_PAWN, Piece::B_PRO_LANCE, Piece::B_PRO_KNIGHT,
+	Piece::B_PRO_SILVER, Piece::B_HORSE, Piece::B_DRAGON, Piece::B_QUEEN
+};
+
+/*
+逆の手番から見た盤面に変化させる。
+盤面・持ち駒・手番を反転。
+*/
+void Position::rotate_position_inplace()
+{
+	// 盤面を180度回し、駒の色を入れ替える。
+	for (int sq = 0; sq < ((Square::SQ_NB + 1) / 2); sq++)
+	{
+		int inv_sq = Square::SQ_NB - 1 - sq;
+		int sq_item = _board[sq];
+		int inv_sq_item = _board[inv_sq];
+		_board[sq] = _ROTATE_PIECE_TABLE[inv_sq_item];
+		_board[inv_sq] = _ROTATE_PIECE_TABLE[sq_item];
+	}
+
+	// 持ち駒を入れ替える。
+	for (int i = 0; i < 7; i++)
+	{
+		int bh = _hand[0][i];
+		int wh = _hand[1][i];
+		_hand[1][i] = bh;
+		_hand[0][i] = wh;
+	}
+
+	side_to_move = Color::invert(side_to_move);
 }

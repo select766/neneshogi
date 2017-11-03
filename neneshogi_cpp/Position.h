@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <vector>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include "Color.h"
@@ -27,5 +28,12 @@ public:
 	UndoMoveInfo do_move(Move move);
 	void undo_move(UndoMoveInfo undo_move_info);
 	bool eq_board(Position& other);
+	void _generate_move_move(std::vector<Move> &move_list);
+	void _generate_move_drop(std::vector<Move> &move_list);
+	std::vector<Move> generate_move_list();
+	std::vector<Move> _generate_move_list_black();
+	bool in_check();
+	bool _in_check_black();
+	void rotate_position_inplace();
 };
 

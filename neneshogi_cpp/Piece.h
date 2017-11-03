@@ -63,5 +63,21 @@ public:
 		PIECE_RAW_NB = 8,
 		PIECE_HAND_ZERO = PAWN,  // 手駒の駒種最小値
 		PIECE_HAND_NB = KING;  // 手駒の駒種最大値 + 1
+
+	// 駒が特定の色かどうか判定する
+	static inline bool is_color(int piece, int color)
+	{
+		if (piece == Piece::PIECE_ZERO)
+		{
+			return false;
+		}
+		return piece / Piece::PIECE_WHITE == color;
+	}
+
+	// 駒が存在するかどうか(空のマスでないか)を判定する
+	static inline bool is_exist(int piece)
+	{
+		return piece != Piece::PIECE_ZERO;
+	}
 };
 

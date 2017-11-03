@@ -158,10 +158,11 @@ def run_nn_search_process(nn_info: NNInfo,
                           nn_queue: multiprocessing.Queue,
                           value_queue: multiprocessing.Queue
                           ):
-    nn_search = NNSearchProcess(nn_info, nn_queue, value_queue)
-    nn_search.run()
-
-
+    try:
+        nn_search = NNSearchProcess(nn_info, nn_queue, value_queue)
+        nn_search.run()
+    except Exception as ex:
+        logger.exception("Unhandled error")
 
 
 class PositionKey:
@@ -179,8 +180,8 @@ class PositionKey:
     @staticmethod
     def _copy_pos(pos: Position) -> Position:
         dst = Position()
-        dst.board[:] = pos.board
-        dst.hand[:] = pos.hand
+        dst.set_board(pos.board)
+        dst.set_hand(pos.hand)
         dst.side_to_move = pos.side_to_move
         dst.game_ply = pos.game_ply
         return dst
@@ -274,6 +275,7 @@ class QTreeNode:
         self.pv = max_move
         return max_value
 
+
 class NNEvalItem:
     def __init__(self, q_trees: List[QTreeNode], parent_pos_key: PositionKey, undo_stack: List[UndoMoveInfo]):
         self.q_trees = q_trees
@@ -288,6 +290,7 @@ class NNValueItem:
         self.static_values = static_values
         self.parent_pos_key = parent_pos_key
         self.undo_stack = undo_stack
+
 
 class MonteCarloSoftmaxV2Player(Engine):
     pos: Position
