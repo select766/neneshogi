@@ -557,6 +557,7 @@ class MonteCarloSoftmaxV2Player(Engine):
         tree_root = self.generate_tree_root()
         pv = []
         is_reserved_root = True  # 初回はルート局面の子しかないので結果を待つ
+        next_pv_update_time = self.search_start_time  # 次にPV計算をする時刻
         while True:
             logger.info(f"pos: {self.pos.get_sfen()}")
             logger.info("loop")
@@ -571,18 +572,21 @@ class MonteCarloSoftmaxV2Player(Engine):
                 except queue.Empty:
                     break
             logger.info("queue pop end")
-            pv = self.find_pv()
             cur_time = time.time()
-            if len(pv) > 0:
-                root_value = self.ttable[tree_root].value
-                usi_info_writer.write_pv(pv=pv,
-                                         depth=len(pv),
-                                         score_cp=int(root_value * 600),
-                                         nodes=self.nodes_count,
-                                         time=int((cur_time - self.search_start_time) * 1000))
-            if cur_time >= self.search_end_time:
-                logger.info("search timeup")
-                break
+            timeup = cur_time >= self.search_end_time
+            if cur_time > next_pv_update_time or timeup:
+                pv = self.find_pv()
+                if len(pv) > 0:
+                    root_value = self.ttable[tree_root].value
+                    usi_info_writer.write_pv(pv=pv,
+                                             depth=len(pv),
+                                             score_cp=int(root_value * 600),
+                                             nodes=self.nodes_count,
+                                             time=int((cur_time - self.search_start_time) * 1000))
+                next_pv_update_time += 2.0
+                if timeup:
+                    logger.info("search timeup")
+                    break
         # self.mate_searcher.stop_signal.value = 1
         # mate_result = self.mate_searcher.response_queue.get()
         # logger.info(f"mate result: {mate_result.params}")
