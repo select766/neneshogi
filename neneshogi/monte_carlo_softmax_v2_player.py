@@ -122,7 +122,16 @@ def run_nn_search_process(nn_info: NNInfo,
                           ):
     try:
         nn_search = NNSearchProcess(nn_info, nn_queue, value_queue)
-        nn_search.run()
+        import os
+        from . import config
+        if os.environ.get("NENESHOGI_PROFILE", "0") == "1":
+            import cProfile
+            import time
+
+            profile_path = os.path.join(config.PROFILE_DIR, f"cprofile_{time.strftime('%Y%m%d%H%M%S')}.nn_process.bin")
+            cProfile.runctx('nn_search.run()', globals(), locals(), filename=profile_path)
+        else:
+            nn_search.run()
     except Exception as ex:
         logger.exception("Unhandled error")
 
