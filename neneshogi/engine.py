@@ -4,7 +4,7 @@
 
 
 from abc import ABCMeta, abstractmethod, abstractproperty
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Callable
 
 from .usi_info_writer import UsiInfoWriter
 
@@ -44,4 +44,7 @@ class Engine(metaclass=ABCMeta):
         pass
 
     def quit(self) -> None:
+        pass
+
+    def ponder(self, last_move: str, interrupt_check: Callable[[], bool]) -> None:
         pass

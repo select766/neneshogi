@@ -4,6 +4,8 @@
 """
 
 import sys
+import queue
+import threading
 from typing import Iterable, Dict, List
 
 from .engine import Engine
@@ -24,6 +26,8 @@ class Usi:
     def __init__(self, engine: Engine):
         self.engine = engine
         self.engine_options = {}
+        self.stdin_thread = None
+        self.stdin_queue = None
 
     def run(self):
         """
@@ -31,7 +35,11 @@ class Usi:
         :return: quitコマンドが来たらメソッドが終了する
         """
         info_writer = UsiInfoWriter(self._put_lines)
-        for recv_line in sys.stdin:
+        self.stdin_queue = queue.Queue()
+        self.stdin_thread = threading.Thread(target=stdin_thread, args=(self.stdin_queue,))
+        self.stdin_thread.start()
+        while True:
+            recv_line = self.stdin_queue.get()
             recv_line_nonl = recv_line.rstrip()
             logger.info(f"USI< {recv_line_nonl}")
             tokens = recv_line_nonl.split(" ")  # type: List[str]
@@ -75,9 +83,19 @@ class Usi:
                 raise NotImplementedError(f"Unknown usi command {cmd}")
             if len(resp_lines) > 0:
                 self._put_lines(resp_lines)
+            if cmd == "go":
+                # msvcrt.kbhit(): stdinではなくキーボード入力しか見られなくてダメ
+                self.engine.ponder(bestmove, lambda: not self.stdin_queue.empty())
 
     def _put_lines(self, lines: Iterable[str]) -> None:
         for line in lines:
             logger.info(f"USI> {line}")
             sys.stdout.write(line + "\n")
         sys.stdout.flush()
+
+
+def stdin_thread(q: queue.Queue):
+    for recv_line in sys.stdin:
+        q.put(recv_line)
+        if recv_line.startswith("quit"):
+            break

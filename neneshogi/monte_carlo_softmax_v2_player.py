@@ -37,7 +37,7 @@ qsearch(node, d)
 """
 
 import random
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Callable
 
 from logging import getLogger
 import queue
@@ -113,7 +113,8 @@ class NNSearchProcess:
                 break
             # TODO 静止探索
             self._add_to_pending(eval_item)
-            logger.info(f"next_serial: {self.next_serial}, forward_complete_len: {self.forward_complete_len}, flush: {self.force_flush}")
+            logger.info(
+                f"next_serial: {self.next_serial}, forward_complete_len: {self.forward_complete_len}, flush: {self.force_flush}")
             while (self.next_serial - self.forward_complete_len >= self.nn_info.batch_size) or \
                     (self.force_flush and self.next_serial > self.forward_complete_len):
                 # バッチサイズ分データが集まったので計算
@@ -134,7 +135,8 @@ class NNSearchProcess:
 
     def _process_batch(self):
         dnn_inputs = []
-        for serial in range(self.forward_complete_len, min(self.forward_complete_len + self.nn_info.batch_size, self.next_serial)):
+        for serial in range(self.forward_complete_len,
+                            min(self.forward_complete_len + self.nn_info.batch_size, self.next_serial)):
             dnn_inputs.append(self.serial_dnn_input.pop(serial))
         cur_batchsize = len(dnn_inputs)
         static_values = self._evaluate(dnn_inputs)
@@ -150,7 +152,6 @@ class NNSearchProcess:
                 self.value_put_ctr.value += 1
             else:
                 break
-
 
     def _evaluate(self, dnn_inputs: List[np.ndarray]) -> List[float]:
         with chainer.using_config('train', False):
@@ -217,7 +218,7 @@ class QTreeNode:
         self.pv = None
         self.is_mated = False
         self.qsearch_children = {}
-        #self.dnn_board = self._make_dnn_input(pos)
+        # self.dnn_board = self._make_dnn_input(pos)
         self.dnn_board = np.empty((1, 61, 9, 9), dtype=np.float32)
         pos.make_dnn_input(0, self.dnn_board)
         self.static_value = None
@@ -327,6 +328,7 @@ class NNSideItem:
 
 class MonteCarloSoftmaxV2Player(Engine):
     pos: Position
+    ponder_enabled: bool
     max_nodes: int
     qsearch_depth: int
     nodes_count: int  # ある局面の探索開始からのノード数
@@ -374,6 +376,7 @@ class MonteCarloSoftmaxV2Player(Engine):
                 "softmax_temperature": "string default 1"}
 
     def isready(self, options: Dict[str, str]):
+        self.ponder_enabled = options["USI_Ponder"] == "true"
         self.max_nodes = int(options["max_nodes"])
         self.qsearch_depth = int(options["qsearch_depth"])
         self.softmax_temperature = float(options["softmax_temperature"])
@@ -390,7 +393,8 @@ class MonteCarloSoftmaxV2Player(Engine):
         self.gpu = int(options["gpu"])
         nn_info = NNInfo(gpu=self.gpu, model_path=options["model_path"], batch_size=int(options["batch_size"]))
         self.nn_search_process = multiprocessing.Process(target=run_nn_search_process,
-                                                         args=(nn_info, self.nn_queue, self.value_queue, self.value_put_ctr))
+                                                         args=(
+                                                         nn_info, self.nn_queue, self.value_queue, self.value_put_ctr))
         self.nn_search_process.start()
         self.ttable = {}
         self.side_buffer = {}
@@ -660,6 +664,17 @@ class MonteCarloSoftmaxV2Player(Engine):
         if len(pv) > 0:
             move_str = pv[0].to_usi_string()
         return move_str
+
+    def ponder(self, last_move: str, interrupt_check: Callable[[], bool]):
+        if last_move == "resign":
+            return
+        if not self.ponder_enabled:
+            logger.info("ponder disabled")
+            return
+        self.pos.do_move(Move.from_usi_string(last_move))
+        while not interrupt_check():
+            logger.info(f"pondering on {self.pos.get_sfen()}...")
+            time.sleep(1.0)
 
     def gameover(self, result: str):
         self._join_nn_process()
