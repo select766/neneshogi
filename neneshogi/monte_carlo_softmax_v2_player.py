@@ -76,6 +76,12 @@ class NNSearchProcess:
     nn_info: NNInfo
     nn_queue: multiprocessing.Queue
     value_queue: multiprocessing.Queue
+    next_serial: int
+    forward_complete_len: int
+    serial_dnn_input: Dict[int, np.ndarray]
+    serial_qtree_node: Dict[int, "QTreeNode"]
+    pending_eval_items: List["NNEvalItem"]
+    force_flush: bool
 
     def __init__(self, nn_info: NNInfo,
                  nn_queue: multiprocessing.Queue,
@@ -87,6 +93,12 @@ class NNSearchProcess:
         if self.nn_info.gpu >= 0:
             chainer.cuda.get_device_from_id(self.nn_info.gpu).use()
             self.model.to_gpu()
+        self.next_serial = 0
+        self.forward_complete_len = 0
+        self.serial_dnn_input = {}
+        self.serial_qtree_node = {}
+        self.pending_eval_items = []
+        self.force_flush = False
 
     def run(self):
         while True:
@@ -97,13 +109,43 @@ class NNSearchProcess:
                 self.value_queue.put(None)
                 break
             # TODO 静止探索
-            # TODO バッチサイズだけ集める
-            dnn_inputs = [q_tree.dnn_board for q_tree in eval_item.q_trees]
-            values = self._evaluate(dnn_inputs)
-            value_item = NNValueItem(
-                values, eval_item.side_id
-            )
-            self.value_queue.put(value_item)
+            self._add_to_pending(eval_item)
+            logger.info(f"next_serial: {self.next_serial}, forward_complete_len: {self.forward_complete_len}, flush: {self.force_flush}")
+            while (self.next_serial - self.forward_complete_len >= self.nn_info.batch_size) or \
+                    (self.force_flush and self.next_serial > self.forward_complete_len):
+                # バッチサイズ分データが集まったので計算
+                self._process_batch()
+            self.force_flush = False
+
+    def _add_to_pending(self, eval_item: "NNEvalItem"):
+        # 評価する行列単位に分割して処理待ちバッファに入れる
+        for q_tree in eval_item.q_trees:
+            self.serial_dnn_input[self.next_serial] = q_tree.dnn_board
+            self.serial_qtree_node[self.next_serial] = q_tree
+            self.next_serial += 1
+        eval_item.final_serial = self.next_serial - 1  # このシリアル番号まで処理が完了したら、このリクエストの処理が完了
+        self.pending_eval_items.append(eval_item)
+        if eval_item.flush:
+            self.force_flush = True
+
+    def _process_batch(self):
+        dnn_inputs = []
+        for serial in range(self.forward_complete_len, min(self.forward_complete_len + self.nn_info.batch_size, self.next_serial)):
+            dnn_inputs.append(self.serial_dnn_input.pop(serial))
+        cur_batchsize = len(dnn_inputs)
+        static_values = self._evaluate(dnn_inputs)
+        for serial in range(self.forward_complete_len, self.forward_complete_len + cur_batchsize):
+            self.serial_qtree_node.pop(serial).static_value = static_values.pop(0)
+        self.forward_complete_len += cur_batchsize
+        while len(self.pending_eval_items) > 0:
+            if self.pending_eval_items[0].final_serial < self.forward_complete_len:
+                # 対応する全Qtreeのstatic_valueが計算済み
+                complete_eval_item = self.pending_eval_items.pop(0)
+                item_values = [q_tree.static_value for q_tree in complete_eval_item.q_trees]
+                self.value_queue.put(NNValueItem(item_values, complete_eval_item.side_id))
+            else:
+                break
+
 
     def _evaluate(self, dnn_inputs: List[np.ndarray]) -> List[float]:
         with chainer.using_config('train', False):
@@ -261,9 +303,10 @@ class QTreeNode:
 
 
 class NNEvalItem:
-    def __init__(self, q_trees: List[QTreeNode], side_id: int):
+    def __init__(self, q_trees: List[QTreeNode], side_id: int, flush: bool):
         self.q_trees = q_trees
         self.side_id = side_id
+        self.flush = flush
 
 
 class NNValueItem:
@@ -422,10 +465,12 @@ class MonteCarloSoftmaxV2Player(Engine):
         # 評価値計算を予約
         side_item = NNSideItem(q_tree_pos_keys, self.pos.copy(), undo_stack)
         self.side_buffer[id(side_item)] = side_item
-        self.nn_queue.put(NNEvalItem(q_trees, id(side_item)))
+        is_root = False
         if len(undo_stack) == 0:
             # ルート局面を予約した
             self.root_side_id = id(side_item)
+            is_root = True
+        self.nn_queue.put(NNEvalItem(q_trees, id(side_item), flush=is_root))
         for undo_info in reversed(undo_stack):
             self.pos.undo_move(undo_info)
 
