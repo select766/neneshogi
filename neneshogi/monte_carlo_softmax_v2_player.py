@@ -120,9 +120,10 @@ class NNSearchProcess:
     def _add_to_pending(self, eval_item: "NNEvalItem"):
         # 評価する行列単位に分割して処理待ちバッファに入れる
         for q_tree in eval_item.q_trees:
-            self.serial_dnn_input[self.next_serial] = q_tree.dnn_board
-            self.serial_qtree_node[self.next_serial] = q_tree
-            self.next_serial += 1
+            for q_item in q_tree.enum_items():
+                self.serial_dnn_input[self.next_serial] = q_item.dnn_board
+                self.serial_qtree_node[self.next_serial] = q_item
+                self.next_serial += 1
         eval_item.final_serial = self.next_serial - 1  # このシリアル番号まで処理が完了したら、このリクエストの処理が完了
         self.pending_eval_items.append(eval_item)
         if eval_item.flush:
@@ -141,7 +142,7 @@ class NNSearchProcess:
             if self.pending_eval_items[0].final_serial < self.forward_complete_len:
                 # 対応する全Qtreeのstatic_valueが計算済み
                 complete_eval_item = self.pending_eval_items.pop(0)
-                item_values = [q_tree.static_value for q_tree in complete_eval_item.q_trees]
+                item_values = [q_tree.get_value() for q_tree in complete_eval_item.q_trees]
                 self.value_queue.put(NNValueItem(item_values, complete_eval_item.side_id))
             else:
                 break
