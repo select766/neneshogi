@@ -152,33 +152,41 @@ void Position::copy_to(Position &other) const
 	memcpy(&other, this, sizeof(Position)); //POD
 }
 
-// https://ja.wikipedia.org/wiki/Adler-32
-#define MOD_ADLER 65521
+// –{“–‚ÍZobrist hash‚Æ‚©‚Ì‚Ù‚¤‚ª‚æ‚³‚»‚¤‚¾‚ªŠÈ’P‚ÉŽg‚¦‚éŽÀ‘•‚Å‚²‚Ü‚©‚·
+// https://ja.wikipedia.org/wiki/%E5%B7%A1%E5%9B%9E%E5%86%97%E9%95%B7%E6%A4%9C%E6%9F%BB
+static uint32_t crc_table[256];
 
-uint32_t adler32(const uint8_t *data, size_t len) {
-	uint32_t a = 1, b = 0;
+class crc_initializer
+{
+public:
+	crc_initializer()
+	{
+		for (uint32_t i = 0; i < 256; i++) {
+			uint32_t c = i;
+			for (int j = 0; j < 8; j++) {
+				c = (c & 1) ? (0xEDB88320 ^ (c >> 1)) : (c >> 1);
+			}
+			crc_table[i] = c;
+		}
 
-	while (len > 0) {
-		size_t tlen = len > 5550 ? 5550 : len;
-		len -= tlen;
-		do {
-			a += *data++;
-			b += a;
-		} while (--tlen);
-
-		a %= MOD_ADLER;
-		b %= MOD_ADLER;
 	}
+};
 
-	return (b << 16) | a;
+static crc_initializer _crc_init_dummy;
+
+static uint32_t crc32(const uint8_t *buf, size_t len) {
+	uint32_t c = 0xFFFFFFFF;
+	for (size_t i = 0; i < len; i++) {
+		c = crc_table[(c ^ buf[i]) & 0xFF] ^ (c >> 8);
+	}
+	return c ^ 0xFFFFFFFF;
 }
 
-
-uint64_t Position::hash() const
+int64_t Position::hash() const
 {
-	uint32_t upper = adler32(&_board[0], 41) ^ adler32(((uint8_t *)_hand), 7);
-	uint32_t lower = adler32(&_board[41], 40) ^ adler32(((uint8_t *)_hand) + 7, 7) ^ side_to_move;
-	return ((uint64_t)upper << 32) | lower;
+	uint32_t upper = crc32(&_board[0], 41) ^ crc32(((uint8_t *)_hand), 7);
+	uint32_t lower = crc32(&_board[41], 40) ^ crc32(((uint8_t *)_hand) + 7, 7) ^ side_to_move;
+	return (int64_t)(((uint64_t)upper << 32) | lower);
 }
 
 bool Position::eq_board(Position & other)

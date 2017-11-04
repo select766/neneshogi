@@ -22,14 +22,6 @@ class Position(CPosition):
     def __init__(self):
         super().__init__()
 
-    def hash(self):
-        m = hashlib.md5()
-        m.update(self.board.tobytes())
-        m.update(self.hand.tobytes())
-        if self.side_to_move == Color.BLACK:
-            m.update(b"b")
-        return m.digest()
-
     def copy(self):
         dst = Position()
         self.copy_to(dst)
