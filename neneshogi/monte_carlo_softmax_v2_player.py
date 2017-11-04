@@ -211,12 +211,10 @@ class QTreeNode:
     dnn_board: np.ndarray
     static_value: float
     qsearch_children: Dict[Move, "QTreeNode"]
-    last_move: Move
     pv: Move
 
     def __init__(self, pos: Position, last_move: Move, qsearch_remain_depth: int):
         self.pv = None
-        self.last_move = last_move
         self.is_mated = False
         self.qsearch_children = {}
         #self.dnn_board = self._make_dnn_input(pos)
