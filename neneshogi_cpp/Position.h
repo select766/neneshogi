@@ -33,7 +33,10 @@ public:
 	void _generate_move_move(std::vector<Move> &move_list);
 	void _generate_move_drop(std::vector<Move> &move_list);
 	std::vector<Move> generate_move_list();
-	std::vector<Move> _generate_move_list_black();
+	std::vector<Move> generate_move_list_nodrop();
+	std::vector<Move> _generate_move_list_black(bool drop);
+	// ê√é~íTçıóp
+	std::vector<Move> generate_move_list_q(Move last_move);
 	bool in_check();
 	bool _in_check_black();
 	void rotate_position_inplace();

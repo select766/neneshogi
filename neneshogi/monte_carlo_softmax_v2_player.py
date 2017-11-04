@@ -224,21 +224,12 @@ class QTreeNode:
 
         # 静止探索のツリーを作成
         if qsearch_remain_depth > 0:
-            move_list = pos.generate_move_list()
-            if len(move_list) == 0:
-                self.is_mated = True
-            else:
-                if pos.in_check():
-                    # 王手の時はすべての手
-                    move_list_filtered = move_list
-                else:
-                    # 王手でないときは、last_moveと行先が同じ手
-                    move_list_filtered = [move for move in move_list if move.move_to == last_move.move_to]
-                for move in move_list_filtered:
-                    undo_info = pos.do_move(move)
-                    child_node = QTreeNode(pos, move, qsearch_remain_depth - 1)
-                    self.qsearch_children[move] = child_node
-                    pos.undo_move(undo_info)
+            move_list = pos.generate_move_list_q(last_move)
+            for move in move_list:
+                undo_info = pos.do_move(move)
+                child_node = QTreeNode(pos, move, qsearch_remain_depth - 1)
+                self.qsearch_children[move] = child_node
+                pos.undo_move(undo_info)
 
     def enum_items(self):
         """

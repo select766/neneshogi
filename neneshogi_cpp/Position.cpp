@@ -435,13 +435,13 @@ std::vector<Move> Position::generate_move_list()
 {
 	if (side_to_move == Color::BLACK)
 	{
-		return _generate_move_list_black();
+		return _generate_move_list_black(true);
 	}
 	else
 	{
 		rotate_position_inplace();
 		std::vector<Move> move_list;
-		for (Move &rot_move : _generate_move_list_black())
+		for (Move &rot_move : _generate_move_list_black(true))
 		{
 			int to_sq = Square::SQ_NB - 1 - rot_move._move_to;
 			if (rot_move._is_drop)
@@ -459,13 +459,14 @@ std::vector<Move> Position::generate_move_list()
 	}
 }
 
-
-
-std::vector<Move> Position::_generate_move_list_black()
+std::vector<Move> Position::_generate_move_list_black(bool drop)
 {
 	std::vector<Move> possible_list;
 	_generate_move_move(possible_list);
-	_generate_move_drop(possible_list);
+	if (drop)
+	{
+		_generate_move_drop(possible_list);
+	}
 	std::vector<Move> legal_list;
 	for (Move &m : possible_list)
 	{
@@ -504,6 +505,60 @@ std::vector<Move> Position::_generate_move_list_black()
 	}
 
 	return legal_list;
+}
+
+
+std::vector<Move> Position::generate_move_list_nodrop()
+{
+	if (side_to_move == Color::BLACK)
+	{
+		return _generate_move_list_black(false);
+	}
+	else
+	{
+		rotate_position_inplace();
+		std::vector<Move> move_list;
+		for (Move &rot_move : _generate_move_list_black(false))
+		{
+			int to_sq = Square::SQ_NB - 1 - rot_move._move_to;
+			if (rot_move._is_drop)
+			{
+				move_list.push_back(Move::make_move_drop(rot_move._move_dropped_piece, to_sq));
+			}
+			else
+			{
+				int from_sq = Square::SQ_NB - 1 - rot_move._move_from;
+				move_list.push_back(Move::make_move(from_sq, to_sq, rot_move._is_promote));
+			}
+		}
+		rotate_position_inplace();
+		return move_list;
+	}
+}
+
+
+std::vector<Move> Position::generate_move_list_q(Move last_move)
+{
+	if (in_check())
+	{
+		// â§éËÇÃéûÇÕÇ∑Ç◊ÇƒÇÃéË
+		return generate_move_list();
+	}
+	else
+	{
+		// â§éËÇ≈Ç»Ç¢Ç∆Ç´ÇÕÅAlast_moveÇ∆çsêÊÇ™ìØÇ∂éË
+		std::vector<Move> candidate_list = generate_move_list_nodrop();
+		std::vector<Move> q_list;
+		for (Move &m : candidate_list)
+		{
+			if (m._move_to == last_move._move_to)
+			{
+				q_list.push_back(m);
+			}
+		}
+
+		return q_list;
+	}
 }
 
 bool Position::in_check()
