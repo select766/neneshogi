@@ -51,7 +51,6 @@ logger = getLogger(__name__)
 
 import numpy as np
 import chainer
-import copy
 
 from .position import Position, Color, Square, Piece, Move
 from .engine import Engine
@@ -99,51 +98,12 @@ class NNSearchProcess:
                 break
             # TODO 静止探索
             # TODO バッチサイズだけ集める
-            dnn_inputs = [self._make_dnn_input(q_tree.pos_key.get_pos()) for q_tree in eval_item.q_trees]
+            dnn_inputs = [q_tree.dnn_board for q_tree in eval_item.q_trees]
             values = self._evaluate(dnn_inputs)
             value_item = NNValueItem(
-                [q_tree.pos_key for q_tree in eval_item.q_trees],
-                values,
-                eval_item.parent_pos_key,
-                eval_item.undo_stack
+                values, eval_item.side_id
             )
             self.value_queue.put(value_item)
-
-    def _make_dnn_input(self, pos: Position):
-        """
-        PositionからDNNへの入力行列を生成する。
-        :return:
-        """
-        # 常に現在の手番が先手となるように盤面を与える
-        pos_from_side = pos
-        if pos_from_side.side_to_move == Color.WHITE:
-            pos_from_side = pos_from_side._rotate_position()
-        ary = np.zeros((61, 81), dtype=np.float32)
-        board = pos_from_side.board
-        hand = pos_from_side.hand
-        # 盤上の駒
-        for sq in range(Square.SQ_NB):
-            piece = board[sq]
-            ch = -1
-            if piece >= Piece.W_PAWN:
-                ch = piece - Piece.W_PAWN + 14
-            elif piece >= Piece.B_PAWN:
-                ch = piece - Piece.B_PAWN
-            if ch >= 0:
-                ary[ch, sq] = 1.0
-        # 持ち駒
-        for color in range(Color.COLOR_NB):
-            for i in range(Piece.PIECE_HAND_NB - Piece.PIECE_HAND_ZERO):
-                hand_count = hand[color][i]
-                ch = color * 7 + 28 + i
-                ary[ch, :] = hand_count
-        # 段・筋
-        for sq in range(Square.SQ_NB):
-            ary[Square.rank_of(sq) + 42, sq] = 1.0
-            ary[Square.file_of(sq) + 51, sq] = 1.0
-        # 定数1
-        ary[60, :] = 1.0
-        return ary.reshape((1, 61, 9, 9))
 
     def _evaluate(self, dnn_inputs: List[np.ndarray]) -> List[float]:
         with chainer.using_config('train', False):
@@ -210,8 +170,11 @@ class TTValue:
 
 
 class QTreeNode:
+    """
+    静止探索を含めた、1局面を評価するのに必要な情報。
+    """
     is_mated: bool
-    pos_key: PositionKey
+    dnn_board: np.ndarray
     static_value: float
     qsearch_children: Dict[Move, "QTreeNode"]
     last_move: Move
@@ -222,7 +185,7 @@ class QTreeNode:
         self.last_move = last_move
         self.is_mated = False
         self.qsearch_children = {}
-        self.pos_key = PositionKey(pos)
+        self.dnn_board = self._make_dnn_input(pos)
         self.static_value = None
 
         # 静止探索のツリーを作成
@@ -272,20 +235,67 @@ class QTreeNode:
         self.pv = max_move
         return max_value
 
+    def _make_dnn_input(self, pos: Position):
+        """
+        PositionからDNNへの入力行列を生成する。
+        :return:
+        """
+        # 常に現在の手番が先手となるように盤面を与える
+        pos_from_side = pos
+        if pos_from_side.side_to_move == Color.WHITE:
+            pos_from_side = pos_from_side._rotate_position()
+        ary = np.zeros((61, 81), dtype=np.float32)
+        board = pos_from_side.board
+        hand = pos_from_side.hand
+        # 盤上の駒
+        for sq in range(Square.SQ_NB):
+            piece = board[sq]
+            ch = -1
+            if piece >= Piece.W_PAWN:
+                ch = piece - Piece.W_PAWN + 14
+            elif piece >= Piece.B_PAWN:
+                ch = piece - Piece.B_PAWN
+            if ch >= 0:
+                ary[ch, sq] = 1.0
+        # 持ち駒
+        for color in range(Color.COLOR_NB):
+            for i in range(Piece.PIECE_HAND_NB - Piece.PIECE_HAND_ZERO):
+                hand_count = hand[color][i]
+                ch = color * 7 + 28 + i
+                ary[ch, :] = hand_count
+        # 段・筋
+        for sq in range(Square.SQ_NB):
+            ary[Square.rank_of(sq) + 42, sq] = 1.0
+            ary[Square.file_of(sq) + 51, sq] = 1.0
+        # 定数1
+        ary[60, :] = 1.0
+        return ary.reshape((1, 61, 9, 9))
+
 
 class NNEvalItem:
-    def __init__(self, q_trees: List[QTreeNode], parent_pos_key: PositionKey, undo_stack: List[UndoMoveInfo]):
+    def __init__(self, q_trees: List[QTreeNode], side_id: int):
         self.q_trees = q_trees
-        self.parent_pos_key = parent_pos_key
-        self.undo_stack = undo_stack
+        self.side_id = side_id
 
 
 class NNValueItem:
-    def __init__(self, pos_keys: List[PositionKey], static_values: List[float], parent_pos_key: PositionKey,
-                 undo_stack: List[UndoMoveInfo]):
-        self.pos_keys = pos_keys
+    def __init__(self, static_values: List[float], side_id: int):
         self.static_values = static_values
-        self.parent_pos_key = parent_pos_key
+        self.side_id = side_id
+
+
+class NNSideItem:
+    """
+    NN処理の結果を利用するための付属情報。対応するPositionなど。
+    """
+
+    q_tree_pos_list: List[PositionKey]
+    parent_pos: Position
+    undo_stack: List[UndoMoveInfo]
+
+    def __init__(self, q_tree_pos_list: List[PositionKey], parent_pos: Position, undo_stack: List[UndoMoveInfo]):
+        self.q_tree_pos_list = q_tree_pos_list
+        self.parent_pos = parent_pos
         self.undo_stack = undo_stack
 
 
@@ -302,6 +312,8 @@ class MonteCarloSoftmaxV2Player(Engine):
     nn_search_process: multiprocessing.Process
     nn_queue: multiprocessing.Queue
     value_queue: multiprocessing.Queue
+    side_buffer: Dict[int, NNSideItem]
+    root_side_id: int  # root局面を評価予約した際のid。結果が返ったらNoneにする。
 
     def __init__(self):
         self.pos = Position()
@@ -347,6 +359,8 @@ class MonteCarloSoftmaxV2Player(Engine):
                                                          args=(nn_info, self.nn_queue, self.value_queue))
         self.nn_search_process.start()
         self.ttable = {}
+        self.side_buffer = {}
+        self.root_side_id = None
 
     def position(self, command: str):
         self.pos.set_usi_position(command)
@@ -361,7 +375,7 @@ class MonteCarloSoftmaxV2Player(Engine):
             chosen_move_index = np.random.choice(move_probs.size, p=move_probs)
         return chosen_move_index
 
-    def search_reserve(self, usi_info_writer: UsiInfoWriter):
+    def search_reserve(self):
         """
         末端まで探索して評価値計算の予約を行う
         self.posは探索開始局面をさしているとする
@@ -377,15 +391,15 @@ class MonteCarloSoftmaxV2Player(Engine):
             moves = self.pos.generate_move_list()
             if len(moves) == 0:
                 # 詰み局面
-                self.ttable[PositionKey(self.pos)] = TTValue(-50.0, None)
                 pk = PositionKey(self.pos)
                 if len(undo_stack) > 0:
                     # ルート局面自体が詰みだと親局面が設定できない
                     self.pos.undo_move(undo_stack.pop())
-                    self.value_queue.put(NNValueItem([pk], [-50.0],
-                                                     PositionKey(self.pos), copy.deepcopy(undo_stack)))
-                while len(undo_stack) > 0:
-                    self.pos.undo_move(undo_stack.pop())
+                    side_item = NNSideItem([pk], self.pos.copy(), undo_stack)
+                    self.side_buffer[id(side_item)] = side_item
+                    self.value_queue.put(NNValueItem([-50.0], id(side_item)))
+                for undo_info in reversed(undo_stack):
+                    self.pos.undo_move(undo_info)
                 return False
             child_values = np.zeros((len(moves),), dtype=np.float32)
             for i, move in enumerate(moves):
@@ -412,31 +426,38 @@ class MonteCarloSoftmaxV2Player(Engine):
 
         # まだない子ノードそれぞれについて、静止探索ツリーを作成
         q_trees = []
+        q_tree_pos_keys = []
         for last_move, new_pk in new_move_pk_list:
             q_tree = QTreeNode(new_pk.get_pos(), last_move, self.qsearch_depth)
             q_trees.append(q_tree)
+            q_tree_pos_keys.append(new_pk)
         # 評価値計算を予約
-        logger.info(f"q_trees: {q_trees}")
-        self.nn_queue.put(NNEvalItem(q_trees, PositionKey(self.pos), copy.deepcopy(undo_stack)))
-        # undo_stackはpickleされるので変更しても影響ないと思うがそうではない模様
-        is_reserved_root = len(undo_stack) == 0
-        while len(undo_stack) > 0:
-            self.pos.undo_move(undo_stack.pop())
-
-        return is_reserved_root
+        side_item = NNSideItem(q_tree_pos_keys, self.pos.copy(), undo_stack)
+        self.side_buffer[id(side_item)] = side_item
+        self.nn_queue.put(NNEvalItem(q_trees, id(side_item)))
+        if len(undo_stack) == 0:
+            # ルート局面を予約した
+            self.root_side_id = id(side_item)
+        for undo_info in reversed(undo_stack):
+            self.pos.undo_move(undo_info)
 
     def update_tree_values(self, nn_value: NNValueItem):
         """
         新規ノードへの評価値を受け取り、ルートノードからの経路上の評価値を更新する。
         :return:
         """
+        if nn_value.side_id == self.root_side_id:
+            # ルート局面の結果
+            self.root_side_id = None
+        side_item = self.side_buffer.pop(nn_value.side_id)  # type: NNSideItem
+
         # 静的評価値の登録
-        for pk, sv in zip(nn_value.pos_keys, nn_value.static_values):
+        for pk, sv in zip(side_item.q_tree_pos_list, nn_value.static_values):
             self.ttable[pk] = TTValue(sv, None)
             self.nodes_count += 1
         # 親ノードの更新
-        undo_stack = nn_value.undo_stack
-        pos = nn_value.parent_pos_key.get_pos()
+        undo_stack = side_item.undo_stack
+        pos = side_item.parent_pos
         while True:
             # posの子ノードすべての評価値から、posの評価値を計算
             moves = pos.generate_move_list()
@@ -558,19 +579,18 @@ class MonteCarloSoftmaxV2Player(Engine):
         # self.mate_searcher.command_queue.put(MateSearcherCommand.go(self.pos))
         tree_root = self.generate_tree_root()
         pv = []
-        is_reserved_root = True  # 初回はルート局面の子しかないので結果を待つ
         next_pv_update_time = self.search_start_time  # 次にPV計算をする時刻
         while True:
             logger.info(f"pos: {self.pos.get_sfen()}")
             logger.info("loop")
-            is_reserved_root = self.search_reserve(usi_info_writer)
+            is_reserved_root = self.search_reserve()
             logger.info("reserved")
             while True:
                 try:
-                    nn_value = self.value_queue.get(block=is_reserved_root)
+                    # ルート局面の評価が来るまでは、次の探索をしても仕方ないので待つ
+                    nn_value = self.value_queue.get(block=self.root_side_id is not None)
                     self.update_tree_values(nn_value)
                     logger.info("updated tree values")
-                    is_reserved_root = False
                 except queue.Empty:
                     break
             logger.info("queue pop end")
@@ -601,6 +621,7 @@ class MonteCarloSoftmaxV2Player(Engine):
         # self.mate_searcher.quit()
         # self.mate_searcher = None
         self.ttable = None
+        self.side_buffer = None
 
     def quit(self):
         self._join_nn_process()
