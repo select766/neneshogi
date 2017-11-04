@@ -28,7 +28,7 @@ public:
 	UndoMoveInfo do_move(Move move);
 	void undo_move(UndoMoveInfo undo_move_info);
 	void copy_to(Position& other) const;
-	uint32_t hash() const;
+	uint64_t hash() const;
 	bool eq_board(Position& other);
 	void _generate_move_move(std::vector<Move> &move_list);
 	void _generate_move_drop(std::vector<Move> &move_list);

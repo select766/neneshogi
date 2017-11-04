@@ -174,9 +174,11 @@ uint32_t adler32(const uint8_t *data, size_t len) {
 }
 
 
-uint32_t Position::hash() const
+uint64_t Position::hash() const
 {
-	return adler32(_board, 81) ^ adler32((uint8_t *)_hand, 14) ^ side_to_move;
+	uint32_t upper = adler32(&_board[0], 41) ^ adler32(((uint8_t *)_hand), 7);
+	uint32_t lower = adler32(&_board[41], 40) ^ adler32(((uint8_t *)_hand) + 7, 7) ^ side_to_move;
+	return ((uint64_t)upper << 32) | lower;
 }
 
 bool Position::eq_board(Position & other)

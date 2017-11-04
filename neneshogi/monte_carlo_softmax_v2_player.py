@@ -127,29 +127,6 @@ def run_nn_search_process(nn_info: NNInfo,
         logger.exception("Unhandled error")
 
 
-class PositionKey:
-    """
-    置換表のキーとして使うPosition
-    """
-    _pos: Position
-
-    def __init__(self, pos: Position):
-        self._pos = PositionKey._copy_pos(pos)
-
-    def get_pos(self):
-        return PositionKey._copy_pos(self._pos)
-
-    @staticmethod
-    def _copy_pos(pos: Position) -> Position:
-        return pos.copy()
-
-    def __eq__(self, other: "PositionKey"):
-        return self._pos.eq_board(other._pos)
-
-    def __hash__(self):
-        return self._pos.hash()
-
-
 class TTValue:
     """
     置換表の値
@@ -291,11 +268,11 @@ class NNSideItem:
     NN処理の結果を利用するための付属情報。対応するPositionなど。
     """
 
-    q_tree_pos_list: List[PositionKey]
+    q_tree_pos_list: List[int]
     parent_pos: Position
     undo_stack: List[UndoMoveInfo]
 
-    def __init__(self, q_tree_pos_list: List[PositionKey], parent_pos: Position, undo_stack: List[UndoMoveInfo]):
+    def __init__(self, q_tree_pos_list: List[int], parent_pos: Position, undo_stack: List[UndoMoveInfo]):
         self.q_tree_pos_list = q_tree_pos_list
         self.parent_pos = parent_pos
         self.undo_stack = undo_stack
@@ -306,7 +283,7 @@ class MonteCarloSoftmaxV2Player(Engine):
     max_nodes: int
     qsearch_depth: int
     nodes_count: int  # ある局面の探索開始からのノード数
-    ttable: Dict[PositionKey, TTValue]  # 置換表
+    ttable: Dict[int, TTValue]  # 置換表
     book: Book
     gpu: int
     # mate_searcher: MateSearcher
@@ -387,13 +364,13 @@ class MonteCarloSoftmaxV2Player(Engine):
         # 末端では、子ノードの評価値がない
         undo_stack = []
         is_pos_terminal = False
-        new_move_pk_list = []  # 末端ノードから1手先の手と局面リスト。すでに置換表にあるものは除く。
+        new_move_pos_list = []  # 末端ノードから1手先の手と局面リスト。すでに置換表にあるものは除く。
         depth = 0
         while depth < 100:  # 千日手ループ回避
             moves = self.pos.generate_move_list()
             if len(moves) == 0:
                 # 詰み局面
-                pk = PositionKey(self.pos)
+                pk = self.pos.hash()
                 if len(undo_stack) > 0:
                     # ルート局面自体が詰みだと親局面が設定できない
                     self.pos.undo_move(undo_stack.pop())
@@ -406,10 +383,10 @@ class MonteCarloSoftmaxV2Player(Engine):
             child_values = np.zeros((len(moves),), dtype=np.float32)
             for i, move in enumerate(moves):
                 undo_info = self.pos.do_move(move)
-                pk = PositionKey(self.pos)
+                pk = self.pos.hash()
                 if pk not in self.ttable:
                     # 子ノードが置換表にないので、self.posの1手前は末端ノード
-                    new_move_pk_list.append((move, pk))
+                    new_move_pos_list.append((move, self.pos.copy()))
                     self.pos.undo_move(undo_info)
                     is_pos_terminal = True
                 else:
@@ -429,10 +406,10 @@ class MonteCarloSoftmaxV2Player(Engine):
         # まだない子ノードそれぞれについて、静止探索ツリーを作成
         q_trees = []
         q_tree_pos_keys = []
-        for last_move, new_pk in new_move_pk_list:
-            q_tree = QTreeNode(new_pk.get_pos(), last_move, self.qsearch_depth)
+        for last_move, new_pos in new_move_pos_list:
+            q_tree = QTreeNode(new_pos, last_move, self.qsearch_depth)
             q_trees.append(q_tree)
-            q_tree_pos_keys.append(new_pk)
+            q_tree_pos_keys.append(new_pos.hash())
         # 評価値計算を予約
         side_item = NNSideItem(q_tree_pos_keys, self.pos.copy(), undo_stack)
         self.side_buffer[id(side_item)] = side_item
@@ -466,14 +443,14 @@ class MonteCarloSoftmaxV2Player(Engine):
             child_values = []
             for move in moves:
                 undo_info = pos.do_move(move)
-                pk = PositionKey(pos)
+                pk = pos.hash()
                 value = -self.ttable[pk].value  # 自分の手番での評価値に変換
                 pos.undo_move(undo_info)
                 child_values.append(value)
             node_values = np.array(child_values, dtype=np.float32)
             exp_values = np.exp((node_values - np.max(node_values)) / self.softmax_temperature)
             prop_value = np.sum(exp_values * node_values) / np.sum(exp_values)
-            self.ttable[PositionKey(pos)].propagate_value = float(prop_value)
+            self.ttable[pos.hash()].propagate_value = float(prop_value)
             if len(undo_stack) == 0:
                 break
             pos.undo_move(undo_stack.pop())
@@ -496,7 +473,7 @@ class MonteCarloSoftmaxV2Player(Engine):
             child_values = np.zeros((len(moves),), dtype=np.float32)
             for i, move in enumerate(moves):
                 undo_info = self.pos.do_move(move)
-                pk = PositionKey(self.pos)
+                pk = self.pos.hash()
                 if pk not in self.ttable:
                     # 子ノードが置換表にないので、self.posの1手前は末端ノード
                     self.pos.undo_move(undo_info)
@@ -518,12 +495,12 @@ class MonteCarloSoftmaxV2Player(Engine):
             self.pos.undo_move(undo_stack.pop())
         return pv
 
-    def generate_tree_root(self) -> PositionKey:
+    def generate_tree_root(self) -> int:
         """
         ルートノードを作成する
         :return:
         """
-        tree_root = PositionKey(self.pos)
+        tree_root = self.pos.hash()
         # 前回の探索によりすでにノードが存在する場合あり
         if tree_root not in self.ttable:
             self.ttable[tree_root] = TTValue(0.0, None)
@@ -584,7 +561,7 @@ class MonteCarloSoftmaxV2Player(Engine):
         while True:
             logger.info(f"pos: {self.pos.get_sfen()}")
             logger.info("loop")
-            is_reserved_root = self.search_reserve()
+            self.search_reserve()
             logger.info("reserved")
             while True:
                 try:

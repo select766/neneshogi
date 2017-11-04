@@ -3,6 +3,7 @@
 関数名等は、可能な限りやねうら王に準拠
 """
 from typing import List, Tuple
+import hashlib
 
 import numpy as np
 from .move import Color, Piece, Square, Move, UndoMoveInfo
@@ -20,6 +21,14 @@ class Position(CPosition):
 
     def __init__(self):
         super().__init__()
+
+    def hash(self):
+        m = hashlib.md5()
+        m.update(self.board.tobytes())
+        m.update(self.hand.tobytes())
+        if self.side_to_move == Color.BLACK:
+            m.update(b"b")
+        return m.digest()
 
     def copy(self):
         dst = Position()
