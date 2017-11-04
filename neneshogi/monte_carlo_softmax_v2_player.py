@@ -371,6 +371,8 @@ class MonteCarloSoftmaxV2Player(Engine):
                 "gpu": "spin default -1 min -1 max 0",
                 "max_nodes": "spin default 1000 min 1 max 10000000",
                 "qsearch_depth": "spin default 0 min 0 max 5",
+                "batch_size": "spin default 256 min 1 max 32768",
+                "queue_size": "spin default 16 min 1 max 1024",
                 "softmax_temperature": "string default 1"}
 
     def isready(self, options: Dict[str, str]):
@@ -382,10 +384,10 @@ class MonteCarloSoftmaxV2Player(Engine):
             self.book = Book()
             self.book.load(util.strip_path(book_path))
         # NN処理プロセスの起動
-        self.nn_queue = multiprocessing.Queue(16)
+        self.nn_queue = multiprocessing.Queue(int(options["queue_size"]))
         self.value_queue = multiprocessing.Queue()
         self.gpu = int(options["gpu"])
-        nn_info = NNInfo(gpu=self.gpu, model_path=options["model_path"], batch_size=256)
+        nn_info = NNInfo(gpu=self.gpu, model_path=options["model_path"], batch_size=int(options["batch_size"]))
         self.nn_search_process = multiprocessing.Process(target=run_nn_search_process,
                                                          args=(nn_info, self.nn_queue, self.value_queue))
         self.nn_search_process.start()
