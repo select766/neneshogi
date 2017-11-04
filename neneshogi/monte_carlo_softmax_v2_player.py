@@ -60,7 +60,6 @@ from .book import BookMove, Book
 from .mate_searcher import MateSearcher, MateSearcherCommand, MateSearcherResponse
 from . import util
 
-COMM_PACK_LEN = 8
 
 class NNInfo:
     gpu: int
@@ -77,7 +76,6 @@ class NNSearchProcess:
     nn_info: NNInfo
     nn_queue: multiprocessing.Queue
     value_queue: multiprocessing.Queue
-    value_queue_buffer: List["NNValueItem"]
     value_put_ctr: multiprocessing.Value
     next_serial: int
     forward_complete_len: int
@@ -93,7 +91,6 @@ class NNSearchProcess:
         self.nn_info = nn_info
         self.nn_queue = nn_queue
         self.value_queue = value_queue
-        self.value_queue_buffer = []
         self.value_put_ctr = value_put_ctr
         self.model = load_model(nn_info.model_path)
         if self.nn_info.gpu >= 0:
@@ -108,21 +105,19 @@ class NNSearchProcess:
 
     def run(self):
         while True:
-            eval_items = self.nn_queue.get()  # type: List[NNEvalItem]
-            if eval_items is None:
+            eval_item = self.nn_queue.get()  # type: NNEvalItem
+            if eval_item is None:
                 # signal of exit
                 logger.info("Received exit message")
                 self.value_queue.put(None)
                 break
-            for eval_item in eval_items:
-                self._add_to_pending(eval_item)
+            # TODO 静止探索
+            self._add_to_pending(eval_item)
             logger.info(f"next_serial: {self.next_serial}, forward_complete_len: {self.forward_complete_len}, flush: {self.force_flush}")
             while (self.next_serial - self.forward_complete_len >= self.nn_info.batch_size) or \
                     (self.force_flush and self.next_serial > self.forward_complete_len):
                 # バッチサイズ分データが集まったので計算
                 self._process_batch()
-            if self.force_flush:
-                self._flush_value_queue()
             self.force_flush = False
 
     def _add_to_pending(self, eval_item: "NNEvalItem"):
@@ -151,20 +146,11 @@ class NNSearchProcess:
                 # 対応する全Qtreeのstatic_valueが計算済み
                 complete_eval_item = self.pending_eval_items.pop(0)
                 item_values = [q_tree.get_value() for q_tree in complete_eval_item.q_trees]
-                self._put_value_queue(NNValueItem(item_values, complete_eval_item.side_id))
+                self.value_queue.put(NNValueItem(item_values, complete_eval_item.side_id))
+                self.value_put_ctr.value += 1
             else:
                 break
 
-    def _put_value_queue(self, item: "NNValueItem"):
-        self.value_queue_buffer.append(item)
-        if len(self.value_queue_buffer) >= COMM_PACK_LEN:
-            self._flush_value_queue()
-
-    def _flush_value_queue(self):
-        if len(self.value_queue_buffer) > 0:
-            self.value_queue.put(self.value_queue_buffer)
-            self.value_queue_buffer = []
-            self.value_put_ctr.value += 1
 
     def _evaluate(self, dnn_inputs: List[np.ndarray]) -> List[float]:
         with chainer.using_config('train', False):
@@ -351,7 +337,6 @@ class MonteCarloSoftmaxV2Player(Engine):
     softmax_temperature: float
     nn_search_process: multiprocessing.Process
     nn_queue: multiprocessing.Queue
-    nn_queue_buffer: List[NNEvalItem]
     value_queue: multiprocessing.Queue
     value_put_ctr: multiprocessing.Value
     value_put_local_ctr: int
@@ -398,7 +383,6 @@ class MonteCarloSoftmaxV2Player(Engine):
             self.book.load(util.strip_path(book_path))
         # NN処理プロセスの起動
         self.nn_queue = multiprocessing.Queue(int(options["queue_size"]))
-        self.nn_queue_buffer = []
         self.value_queue = multiprocessing.Queue()
         self.value_put_ctr = multiprocessing.Value("i", 0)
         self.value_put_local_ctr = 0
@@ -447,7 +431,7 @@ class MonteCarloSoftmaxV2Player(Engine):
                     self.pos.undo_move(undo_stack.pop())
                     side_item = NNSideItem([pk], self.pos.copy(), undo_stack)
                     self.side_buffer[id(side_item)] = side_item
-                    self.value_queue.put([NNValueItem([-50.0], id(side_item))])
+                    self.value_queue.put(NNValueItem([-50.0], id(side_item)))
                     self.value_put_local_ctr += 1
                 for undo_info in reversed(undo_stack):
                     self.pos.undo_move(undo_info)
@@ -489,10 +473,7 @@ class MonteCarloSoftmaxV2Player(Engine):
             # ルート局面を予約した
             self.root_side_id = id(side_item)
             is_root = True
-        self.nn_queue_buffer.append(NNEvalItem(q_trees, id(side_item), flush=is_root))
-        if len(self.nn_queue_buffer) >= COMM_PACK_LEN or is_root:
-            self.nn_queue.put(self.nn_queue_buffer)
-            self.nn_queue_buffer = []
+        self.nn_queue.put(NNEvalItem(q_trees, id(side_item), flush=is_root))
         for undo_info in reversed(undo_stack):
             self.pos.undo_move(undo_info)
 
@@ -640,9 +621,8 @@ class MonteCarloSoftmaxV2Player(Engine):
                 item_exist = self.value_put_ctr.value + self.value_put_local_ctr - self.value_get_ctr > 0
                 if self.root_side_id is not None or item_exist:
                     # ルート局面の評価が来るまでは、次の探索をしても仕方ないので待つ
-                    nn_values = self.value_queue.get(block=True)
-                    for nn_value in nn_values:
-                        self.update_tree_values(nn_value)
+                    nn_value = self.value_queue.get(block=True)
+                    self.update_tree_values(nn_value)
                     self.value_get_ctr += 1
                 else:
                     break
