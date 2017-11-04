@@ -451,7 +451,6 @@ class MonteCarloSoftmaxV2Player(Engine):
             # すべての子ノードがあったので、確率的に次のノードを選択
             move_index = self.sample_move_index(child_values)
             move = moves[move_index]
-            logger.info(f"move {move.to_usi_string()}")
             undo_stack.append(self.pos.do_move(move))
             depth += 1
 
@@ -613,19 +612,14 @@ class MonteCarloSoftmaxV2Player(Engine):
         pv = []
         next_pv_update_time = self.search_start_time  # 次にPV計算をする時刻
         while True:
-            logger.info(f"pos: {self.pos.get_sfen()}")
-            logger.info("loop")
             self.search_reserve()
-            logger.info("reserved")
             while True:
                 try:
                     # ルート局面の評価が来るまでは、次の探索をしても仕方ないので待つ
                     nn_value = self.value_queue.get(block=self.root_side_id is not None)
                     self.update_tree_values(nn_value)
-                    logger.info("updated tree values")
                 except queue.Empty:
                     break
-            logger.info("queue pop end")
             cur_time = time.time()
             timeup = cur_time >= self.search_end_time
             if cur_time > next_pv_update_time or timeup:
