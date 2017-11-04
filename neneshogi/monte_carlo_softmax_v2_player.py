@@ -185,7 +185,9 @@ class QTreeNode:
         self.last_move = last_move
         self.is_mated = False
         self.qsearch_children = {}
-        self.dnn_board = self._make_dnn_input(pos)
+        #self.dnn_board = self._make_dnn_input(pos)
+        self.dnn_board = np.empty((1, 61, 9, 9), dtype=np.float32)
+        pos.make_dnn_input(0, self.dnn_board)
         self.static_value = None
 
         # 静止探索のツリーを作成
@@ -400,7 +402,7 @@ class MonteCarloSoftmaxV2Player(Engine):
                     self.value_queue.put(NNValueItem([-50.0], id(side_item)))
                 for undo_info in reversed(undo_stack):
                     self.pos.undo_move(undo_info)
-                return False
+                return
             child_values = np.zeros((len(moves),), dtype=np.float32)
             for i, move in enumerate(moves):
                 undo_info = self.pos.do_move(move)
@@ -474,7 +476,6 @@ class MonteCarloSoftmaxV2Player(Engine):
             self.ttable[PositionKey(pos)].propagate_value = float(prop_value)
             if len(undo_stack) == 0:
                 break
-            logger.info(f"update undo move {len(undo_stack)}")
             pos.undo_move(undo_stack.pop())
 
     def find_pv(self):

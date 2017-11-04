@@ -37,5 +37,6 @@ public:
 	bool in_check();
 	bool _in_check_black();
 	void rotate_position_inplace();
+	void make_dnn_input(int format, py::array_t<float, py::array::c_style | py::array::forcecast> dst);
 };
 

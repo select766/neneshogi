@@ -702,3 +702,65 @@ void Position::rotate_position_inplace()
 
 	side_to_move = Color::invert(side_to_move);
 }
+
+void Position::make_dnn_input(int format, py::array_t<float, py::array::c_style | py::array::forcecast> dst)
+{
+	auto info = dst.request();
+	float* dst_ptr = static_cast<float*>(info.ptr);//(61,9,9)
+
+	bool rotate = false;
+	if (side_to_move == Color::WHITE)
+	{
+		rotate_position_inplace();
+		rotate = true;
+	}
+
+	memset(dst_ptr, 0, sizeof(float) * 61 * Square::SQ_NB);
+
+	// î’è„ÇÃãÓ
+	for (int sq = 0; sq < Square::SQ_NB; sq++)
+	{
+		uint8_t piece = _board[sq];
+		if (piece > 0)
+		{
+			int ch;
+			if (piece >= Piece::W_PAWN)
+			{
+				ch = piece - Piece::W_PAWN + 14;
+			}
+			else
+			{
+				ch = piece - Piece::B_PAWN;
+			}
+
+			dst_ptr[ch * Square::SQ_NB + sq] = 1.0;
+		}
+	}
+
+	// éùÇøãÓ
+	for (int color = 0; color < Color::COLOR_NB; color++)
+	{
+		for (int i = 0; i < (Piece::PIECE_HAND_NB-Piece::PIECE_HAND_ZERO); i++)
+		{
+			int hand_count = _hand[color][i];
+			int ch = color * 7 + 28 + i;
+			for (int sq = 0; sq < Square::SQ_NB; sq++)
+			{
+				dst_ptr[ch * Square::SQ_NB + sq] = hand_count;
+			}
+		}
+	}
+
+	// íiÅEãÿÅEíËêî1
+	for (int sq = 0; sq < Square::SQ_NB; sq++)
+	{
+		dst_ptr[(Square::rank_of(sq) + 42) * Square::SQ_NB + sq] = 1.0;
+		dst_ptr[(Square::file_of(sq) + 51) * Square::SQ_NB + sq] = 1.0;
+		dst_ptr[60 * Square::SQ_NB + sq] = 1.0;
+	}
+
+	if (rotate)
+	{
+		rotate_position_inplace();
+	}
+}
