@@ -178,6 +178,6 @@ class Position(CPosition):
         #rot.board[:] = Position._ROTATE_PIECE_TABLE[self.board[::-1]]
         rot.set_board(Position._ROTATE_PIECE_TABLE[self.board[::-1]])
         #rot.hand[:] = self.hand[::-1, :]
-        rot.set_hand(self.hand[::-1, :])
+        rot.set_hand(self.hand[::-1, :].copy())
         rot.side_to_move = Color.invert(self.side_to_move)
         return rot
