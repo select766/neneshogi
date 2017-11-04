@@ -609,6 +609,19 @@ class MonteCarloSoftmaxV2Player(Engine):
             if book_move is not None:
                 book_move.write_pv(usi_info_writer)
                 return book_move.move.to_usi_string()
+
+        # 読み終わってない古い探索リクエストを消去する
+        old_request_count = 0
+        while True:
+            try:
+                vq_item = self.value_queue.get_nowait()  # type: NNEvalItem
+                self.side_buffer.pop(vq_item.side_id)
+                old_request_count += 1
+                self.value_get_ctr += 1  # 向こうからのレスポンスが来なくなるため
+            except queue.Empty:
+                break
+        if old_request_count > 0:
+            logger.info(f"removed old request: {old_request_count}")
         move_str = "resign"
         # self.mate_searcher.stop_signal.value = 0
         # self.mate_searcher.command_queue.put(MateSearcherCommand.go(self.pos))
