@@ -76,6 +76,7 @@ class NNSearchProcess:
     nn_info: NNInfo
     nn_queue: multiprocessing.Queue
     value_queue: multiprocessing.Queue
+    value_put_ctr: multiprocessing.Value
     next_serial: int
     forward_complete_len: int
     serial_dnn_input: Dict[int, np.ndarray]
@@ -85,10 +86,12 @@ class NNSearchProcess:
 
     def __init__(self, nn_info: NNInfo,
                  nn_queue: multiprocessing.Queue,
-                 value_queue: multiprocessing.Queue):
+                 value_queue: multiprocessing.Queue,
+                 value_put_ctr: multiprocessing.Value):
         self.nn_info = nn_info
         self.nn_queue = nn_queue
         self.value_queue = value_queue
+        self.value_put_ctr = value_put_ctr
         self.model = load_model(nn_info.model_path)
         if self.nn_info.gpu >= 0:
             chainer.cuda.get_device_from_id(self.nn_info.gpu).use()
@@ -144,6 +147,7 @@ class NNSearchProcess:
                 complete_eval_item = self.pending_eval_items.pop(0)
                 item_values = [q_tree.get_value() for q_tree in complete_eval_item.q_trees]
                 self.value_queue.put(NNValueItem(item_values, complete_eval_item.side_id))
+                self.value_put_ctr.value += 1
             else:
                 break
 
@@ -161,10 +165,11 @@ class NNSearchProcess:
 
 def run_nn_search_process(nn_info: NNInfo,
                           nn_queue: multiprocessing.Queue,
-                          value_queue: multiprocessing.Queue
+                          value_queue: multiprocessing.Queue,
+                          value_put_ctr: multiprocessing.Value
                           ):
     try:
-        nn_search = NNSearchProcess(nn_info, nn_queue, value_queue)
+        nn_search = NNSearchProcess(nn_info, nn_queue, value_queue, value_put_ctr)
         import os
         from . import config
         if os.environ.get("NENESHOGI_PROFILE", "0") == "1":
@@ -344,6 +349,9 @@ class MonteCarloSoftmaxV2Player(Engine):
     nn_search_process: multiprocessing.Process
     nn_queue: multiprocessing.Queue
     value_queue: multiprocessing.Queue
+    value_put_ctr: multiprocessing.Value
+    value_put_local_ctr: int
+    value_get_ctr: int
     side_buffer: Dict[int, NNSideItem]
     root_side_id: int  # root局面を評価予約した際のid。結果が返ったらNoneにする。
 
@@ -387,10 +395,13 @@ class MonteCarloSoftmaxV2Player(Engine):
         # NN処理プロセスの起動
         self.nn_queue = multiprocessing.Queue(int(options["queue_size"]))
         self.value_queue = multiprocessing.Queue()
+        self.value_put_ctr = multiprocessing.Value("i", 0)
+        self.value_put_local_ctr = 0
+        self.value_get_ctr = 0
         self.gpu = int(options["gpu"])
         nn_info = NNInfo(gpu=self.gpu, model_path=options["model_path"], batch_size=int(options["batch_size"]))
         self.nn_search_process = multiprocessing.Process(target=run_nn_search_process,
-                                                         args=(nn_info, self.nn_queue, self.value_queue))
+                                                         args=(nn_info, self.nn_queue, self.value_queue, self.value_put_ctr))
         self.nn_search_process.start()
         self.ttable = {}
         self.side_buffer = {}
@@ -432,6 +443,7 @@ class MonteCarloSoftmaxV2Player(Engine):
                     side_item = NNSideItem([pk], self.pos.copy(), undo_stack)
                     self.side_buffer[id(side_item)] = side_item
                     self.value_queue.put(NNValueItem([-50.0], id(side_item)))
+                    self.value_put_local_ctr += 1
                 for undo_info in reversed(undo_stack):
                     self.pos.undo_move(undo_info)
                 return
@@ -617,11 +629,13 @@ class MonteCarloSoftmaxV2Player(Engine):
         while True:
             self.search_reserve()
             while True:
-                try:
+                item_exist = self.value_put_ctr.value + self.value_put_local_ctr - self.value_get_ctr > 0
+                if self.root_side_id is not None or item_exist:
                     # ルート局面の評価が来るまでは、次の探索をしても仕方ないので待つ
-                    nn_value = self.value_queue.get(block=self.root_side_id is not None)
+                    nn_value = self.value_queue.get(block=True)
                     self.update_tree_values(nn_value)
-                except queue.Empty:
+                    self.value_get_ctr += 1
+                else:
                     break
             cur_time = time.time()
             timeup = cur_time >= self.search_end_time
