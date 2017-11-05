@@ -26,6 +26,14 @@ python -m neneshogi.generate_position_testcase data\testcase\generate_position_t
 python -m unittest
 ```
 
+## モデル学習
+36byte/record(32: packed sfen, 2: value, 2: pv move)の棋譜を用意(最新版のやねうら王だと違うので、後で改良)
+
+```
+python -m neneshogi.train_config clone xxxx  # xxxxは設定クローン元のID
+python -m neneshogi.train data\model\yyyy  # yyyyは学習ID
+```
+
 # 環境構築
 ## 実行用
 - NVIDIAドライバ
