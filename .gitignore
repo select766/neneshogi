@@ -113,8 +113,6 @@ ENV/
 /player_bat/*copy*
 /data/bad_move_statistics/*
 /data/profile/*
-/neneshogi/position_acc.c
-/neneshogi/position_acc.html
 /neneshogi/neneshogi_cpp.*
 !/neneshogi/neneshogi_cpp.pyd
 /neneshogi_cpp/x64

@@ -7,7 +7,6 @@ import hashlib
 
 import numpy as np
 from .move import Color, Piece, Square, Move, UndoMoveInfo
-#from . import position_acc
 from .neneshogi_cpp import Position as CPosition
 
 class Position(CPosition):
