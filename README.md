@@ -49,11 +49,11 @@ python -m neneshogi.train data\model\yyyy  # yyyyは学習ID
 - pipにて以下のパッケージ
   - chainer (2.0系)
   - cupy
-  - graphviz
+  - graphviz (現在不使用)
 - 将棋所
 
 ## 開発用
 - PyCharm
 - [Git](https://git-for-windows.github.io/)
-- [Graphviz](http://www.graphviz.org/Download_windows.php)
+- [Graphviz](http://www.graphviz.org/Download_windows.php) (現在不使用)
   - PATHを手動で通す必要あり。 `C:\Program Files (x86)\Graphviz2.38\bin`
