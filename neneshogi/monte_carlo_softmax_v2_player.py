@@ -601,19 +601,15 @@ class MonteCarloSoftmaxV2Player(Engine):
         logger.info(f"Scheduled search time: {search_time}sec")
         return search_time
 
-    @util.release_gpu_memory_pool
-    def go(self, usi_info_writer: UsiInfoWriter, go_receive_time: float, btime: Optional[int] = None,
-           wtime: Optional[int] = None, byoyomi: Optional[int] = None, binc: Optional[int] = None,
-           winc: Optional[int] = None):
-        self.search_start_time = go_receive_time
-        self.search_end_time = self.search_start_time + self.calculate_search_time(btime, wtime, byoyomi, binc, winc)
-
+    def go_or_ponder(self, is_go: bool, usi_info_writer: Optional[UsiInfoWriter],
+                     ponder_interrupt_check: Optional[Callable[[], bool]]):
         self.nodes_count = 0
 
         if self.book is not None:
             book_move = self.book.get_move(self.pos)  # type: BookMove
             if book_move is not None:
-                book_move.write_pv(usi_info_writer)
+                if usi_info_writer is not None:
+                    book_move.write_pv(usi_info_writer)
                 return book_move.move.to_usi_string()
 
         # 読み終わってない古い探索リクエストを消去する
@@ -645,27 +641,40 @@ class MonteCarloSoftmaxV2Player(Engine):
                     self.value_get_ctr += 1
                 else:
                     break
-            cur_time = time.time()
-            timeup = cur_time >= self.search_end_time
-            if cur_time > next_pv_update_time or timeup:
-                pv = self.find_pv()
-                if len(pv) > 0:
-                    root_value = self.ttable[tree_root].value
-                    usi_info_writer.write_pv(pv=pv,
-                                             depth=len(pv),
-                                             score_cp=int(root_value * 600),
-                                             nodes=self.nodes_count,
-                                             time=int((cur_time - self.search_start_time) * 1000))
-                next_pv_update_time += 2.0
-                if timeup:
-                    logger.info("search timeup")
-                    break
+            if is_go:
+                cur_time = time.time()
+                timeup = cur_time >= self.search_end_time
+                if cur_time > next_pv_update_time or timeup:
+                    pv = self.find_pv()
+                    if len(pv) > 0:
+                        root_value = self.ttable[tree_root].value
+                        usi_info_writer.write_pv(pv=pv,
+                                                 depth=len(pv),
+                                                 score_cp=int(root_value * 600),
+                                                 nodes=self.nodes_count,
+                                                 time=int((cur_time - self.search_start_time) * 1000))
+                    next_pv_update_time += 2.0
+                    if timeup:
+                        logger.info("search timeup")
+                        break
+            else:
+                # ponderの場合は次のgoコマンドが来たら終了
+                if ponder_interrupt_check():
+                    logger.info(f"ponder interrupted, nodes={self.nodes_count}")
+                    return
         # self.mate_searcher.stop_signal.value = 1
         # mate_result = self.mate_searcher.response_queue.get()
         # logger.info(f"mate result: {mate_result.params}")
         if len(pv) > 0:
             move_str = pv[0].to_usi_string()
         return move_str
+
+    def go(self, usi_info_writer: UsiInfoWriter, go_receive_time: float, btime: Optional[int] = None,
+           wtime: Optional[int] = None, byoyomi: Optional[int] = None, binc: Optional[int] = None,
+           winc: Optional[int] = None):
+        self.search_start_time = go_receive_time
+        self.search_end_time = self.search_start_time + self.calculate_search_time(btime, wtime, byoyomi, binc, winc)
+        return self.go_or_ponder(True, usi_info_writer, None)
 
     def ponder(self, last_move: str, interrupt_check: Callable[[], bool]):
         if last_move == "resign":
@@ -674,9 +683,8 @@ class MonteCarloSoftmaxV2Player(Engine):
             logger.info("ponder disabled")
             return
         self.pos.do_move(Move.from_usi_string(last_move))
-        while not interrupt_check():
-            logger.info(f"pondering on {self.pos.get_sfen()}...")
-            time.sleep(1.0)
+        logger.info(f"pondering on {self.pos.get_sfen()}...")
+        self.go_or_ponder(False, None, interrupt_check)
 
     def gameover(self, result: str):
         self._join_nn_process()
