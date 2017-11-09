@@ -335,6 +335,7 @@ class MonteCarloSoftmaxV2Player(Engine):
     cp_scale: int  # 表示に際して内部評価値に掛ける係数
     time_divider: float  # 残り時間をこの数で割って、この手の思考時間を決める(フィッシャークロックルールのとき)
     time_inc_divider: float  # 残り時間をこの数で割って、この手の思考時間を決める(フィッシャークロックルールのとき)
+    no_ponder: bool  # ponderしない。自己対戦で一方だけponderを切る場合に使用。
     ttable: Dict[int, TTValue]  # 置換表
     book: Book
     gpu: int
@@ -379,10 +380,11 @@ class MonteCarloSoftmaxV2Player(Engine):
                 "cp_scale": "spin default 600 min 1 max 10000",
                 "time_divider": "string default 50",
                 "time_inc_divider": "string default 25",
-                "softmax_temperature": "string default 1"}
+                "softmax_temperature": "string default 1",
+                "no_ponder": "check default false"}
 
     def isready(self, options: Dict[str, str]):
-        self.ponder_enabled = options["USI_Ponder"] == "true"
+        self.ponder_enabled = options["USI_Ponder"] == "true" and options["no_ponder"] == "false"
         self.max_nodes = int(options["max_nodes"])
         self.qsearch_depth = int(options["qsearch_depth"])
         self.softmax_temperature = float(options["softmax_temperature"])
