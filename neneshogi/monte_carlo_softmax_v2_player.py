@@ -333,6 +333,8 @@ class MonteCarloSoftmaxV2Player(Engine):
     qsearch_depth: int
     nodes_count: int  # ある局面の探索開始からのノード数
     cp_scale: int  # 表示に際して内部評価値に掛ける係数
+    time_divider: float  # 残り時間をこの数で割って、この手の思考時間を決める(フィッシャークロックルールのとき)
+    time_inc_divider: float  # 残り時間をこの数で割って、この手の思考時間を決める(フィッシャークロックルールのとき)
     ttable: Dict[int, TTValue]  # 置換表
     book: Book
     gpu: int
@@ -375,6 +377,8 @@ class MonteCarloSoftmaxV2Player(Engine):
                 "batch_size": "spin default 256 min 1 max 32768",
                 "queue_size": "spin default 16 min 1 max 1024",
                 "cp_scale": "spin default 600 min 1 max 10000",
+                "time_divider": "string default 50",
+                "time_inc_divider": "string default 25",
                 "softmax_temperature": "string default 1"}
 
     def isready(self, options: Dict[str, str]):
@@ -383,6 +387,8 @@ class MonteCarloSoftmaxV2Player(Engine):
         self.qsearch_depth = int(options["qsearch_depth"])
         self.softmax_temperature = float(options["softmax_temperature"])
         self.cp_scale = int(options["cp_scale"])
+        self.time_divider = float(options["time_divider"])
+        self.time_inc_divider = float(options["time_inc_divider"])
         book_path = options["book"]
         if len(book_path) > 0:
             self.book = Book()
@@ -592,9 +598,9 @@ class MonteCarloSoftmaxV2Player(Engine):
 
         if mytime is not None:
             if myinc is not None:
-                search_time += (mytime - myinc) / 1000.0 / 25 + myinc / 1000.0
+                search_time += (mytime - myinc) / 1000.0 / self.time_inc_divider + myinc / 1000.0
             else:
-                search_time += mytime / 1000.0 / 50
+                search_time += mytime / 1000.0 / self.time_divider
         if byoyomi is not None:
             search_time += byoyomi / 1000.0
 
