@@ -332,6 +332,7 @@ class MonteCarloSoftmaxV2Player(Engine):
     max_nodes: int
     qsearch_depth: int
     nodes_count: int  # ある局面の探索開始からのノード数
+    cp_scale: int  # 表示に際して内部評価値に掛ける係数
     ttable: Dict[int, TTValue]  # 置換表
     book: Book
     gpu: int
@@ -373,6 +374,7 @@ class MonteCarloSoftmaxV2Player(Engine):
                 "qsearch_depth": "spin default 0 min 0 max 5",
                 "batch_size": "spin default 256 min 1 max 32768",
                 "queue_size": "spin default 16 min 1 max 1024",
+                "cp_scale": "spin default 600 min 1 max 10000",
                 "softmax_temperature": "string default 1"}
 
     def isready(self, options: Dict[str, str]):
@@ -380,6 +382,7 @@ class MonteCarloSoftmaxV2Player(Engine):
         self.max_nodes = int(options["max_nodes"])
         self.qsearch_depth = int(options["qsearch_depth"])
         self.softmax_temperature = float(options["softmax_temperature"])
+        self.cp_scale = int(options["cp_scale"])
         book_path = options["book"]
         if len(book_path) > 0:
             self.book = Book()
@@ -650,7 +653,7 @@ class MonteCarloSoftmaxV2Player(Engine):
                         root_value = self.ttable[tree_root].value
                         usi_info_writer.write_pv(pv=pv,
                                                  depth=len(pv),
-                                                 score_cp=int(root_value * 600),
+                                                 score_cp=int(root_value * self.cp_scale),
                                                  nodes=self.nodes_count,
                                                  time=int((cur_time - self.search_start_time) * 1000))
                     next_pv_update_time += 2.0
