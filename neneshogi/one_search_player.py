@@ -109,8 +109,9 @@ class OneSearchPlayer(Engine):
         return max_move
 
     @util.release_gpu_memory_pool
-    def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int] = None, wtime: Optional[int] = None,
-           byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
+    def go(self, usi_info_writer: UsiInfoWriter, go_receive_time: float, btime: Optional[int] = None,
+           wtime: Optional[int] = None, byoyomi: Optional[int] = None, binc: Optional[int] = None,
+           winc: Optional[int] = None):
         move_list = self.pos.generate_move_list()
         if len(move_list) == 0:
             return "resign"

@@ -5,6 +5,7 @@
 
 import sys
 import queue
+import time
 import threading
 from typing import Iterable, Dict, List
 
@@ -39,7 +40,7 @@ class Usi:
         self.stdin_thread = threading.Thread(target=stdin_thread, args=(self.stdin_queue,))
         self.stdin_thread.start()
         while True:
-            recv_line = self.stdin_queue.get()
+            recv_line, recv_time = self.stdin_queue.get()
             recv_line_nonl = recv_line.rstrip()
             logger.info(f"USI< {recv_line_nonl}")
             tokens = recv_line_nonl.split(" ")  # type: List[str]
@@ -71,7 +72,7 @@ class Usi:
                         go_option_dict[go_option_name] = int(tokens.pop(0))
                     else:
                         raise NotImplementedError(f"Unknown go option {go_option_name}")
-                bestmove = self.engine.go(info_writer, **go_option_dict)
+                bestmove = self.engine.go(info_writer, recv_time, **go_option_dict)
                 resp_lines.append(f"bestmove {bestmove}")
             elif cmd == "gameover":
                 # gameover win
@@ -96,6 +97,6 @@ class Usi:
 
 def stdin_thread(q: queue.Queue):
     for recv_line in sys.stdin:
-        q.put(recv_line)
+        q.put((recv_line, time.time()))
         if recv_line.startswith("quit"):
             break

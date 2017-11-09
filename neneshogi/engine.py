@@ -36,7 +36,7 @@ class Engine(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int]=None, wtime: Optional[int]=None,
+    def go(self, usi_info_writer: UsiInfoWriter, go_receive_time: float, btime: Optional[int]=None, wtime: Optional[int]=None,
            byoyomi: Optional[int]=None, binc: Optional[int]=None, winc: Optional[int]=None) -> str:
         pass
 

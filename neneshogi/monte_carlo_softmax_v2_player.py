@@ -394,7 +394,8 @@ class MonteCarloSoftmaxV2Player(Engine):
         nn_info = NNInfo(gpu=self.gpu, model_path=options["model_path"], batch_size=int(options["batch_size"]))
         self.nn_search_process = multiprocessing.Process(target=run_nn_search_process,
                                                          args=(
-                                                         nn_info, self.nn_queue, self.value_queue, self.value_put_ctr))
+                                                             nn_info, self.nn_queue, self.value_queue,
+                                                             self.value_put_ctr))
         self.nn_search_process.start()
         self.ttable = {}
         self.side_buffer = {}
@@ -601,9 +602,10 @@ class MonteCarloSoftmaxV2Player(Engine):
         return search_time
 
     @util.release_gpu_memory_pool
-    def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int] = None, wtime: Optional[int] = None,
-           byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
-        self.search_start_time = time.time()
+    def go(self, usi_info_writer: UsiInfoWriter, go_receive_time: float, btime: Optional[int] = None,
+           wtime: Optional[int] = None, byoyomi: Optional[int] = None, binc: Optional[int] = None,
+           winc: Optional[int] = None):
+        self.search_start_time = go_receive_time
         self.search_end_time = self.search_start_time + self.calculate_search_time(btime, wtime, byoyomi, binc, winc)
 
         self.nodes_count = 0

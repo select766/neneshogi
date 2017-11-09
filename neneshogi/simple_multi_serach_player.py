@@ -182,8 +182,9 @@ class SimpleMultiSearchPlayer(Engine):
             return np.array([], dtype=np.float32)
 
     @util.release_gpu_memory_pool
-    def go(self, usi_info_writer: UsiInfoWriter, btime: Optional[int] = None, wtime: Optional[int] = None,
-           byoyomi: Optional[int] = None, binc: Optional[int] = None, winc: Optional[int] = None):
+    def go(self, usi_info_writer: UsiInfoWriter, go_receive_time: float, btime: Optional[int] = None,
+           wtime: Optional[int] = None, byoyomi: Optional[int] = None, binc: Optional[int] = None,
+           winc: Optional[int] = None):
         # 木の作成
         logger.info("generating game tree")
         self.evaluate_list = []
