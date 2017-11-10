@@ -398,8 +398,8 @@ class MonteCarloSoftmaxV2Player(Engine):
         self.qsearch_depth = int(options["qsearch_depth"])
         self.softmax_temperature = float(options["softmax_temperature"])
         if self.softmax_temperature <= 0.0:
-            # パラメータチューニング用に、ランダムにsoftmax temperatureを1.0から0.01まで振る
-            self.softmax_temperature = float(10.0 ** (np.random.random() * -2.0))
+            # パラメータチューニング用に、ランダムにsoftmax temperatureを0.1から0.001まで振る
+            self.softmax_temperature = float(10.0 ** (np.random.random() * -2.0 - 1.0))
             logger.info(f"random softmax temperature: {self.softmax_temperature}")
         self.cp_scale = int(options["cp_scale"])
         self.time_divider = float(options["time_divider"])
