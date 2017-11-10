@@ -805,7 +805,7 @@ void Position::make_dnn_input(int format, py::array_t<float, py::array::c_style 
 	// ‚¿‹î
 	for (int color = 0; color < Color::COLOR_NB; color++)
 	{
-		for (int i = 0; i < (Piece::PIECE_HAND_NB-Piece::PIECE_HAND_ZERO); i++)
+		for (int i = 0; i < (Piece::PIECE_HAND_NB - Piece::PIECE_HAND_ZERO); i++)
 		{
 			int hand_count = _hand[color][i];
 			int ch = color * 7 + 28 + i;
@@ -828,4 +828,27 @@ void Position::make_dnn_input(int format, py::array_t<float, py::array::c_style 
 	{
 		rotate_position_inplace();
 	}
+}
+
+std::vector<Move> Position::mate_search()
+{
+	// 1è‹l‚ß‚ğŒŸõ
+	auto my_move_list = generate_move_list();
+	if (my_move_list.size() == 0)
+	{
+		// ©•ª‚ª“®‚¯‚È‚¢‚Ì‚Å‹l‚ñ‚Å‚¢‚é
+		return std::vector<Move>();
+	}
+
+	for (auto &m : my_move_list) {
+		// ©•ª‚Ìè‚É‚æ‚Á‚Ä‘Šè‚Ì‡–@è‚ª‚È‚­‚È‚ê‚Î1è‹l‚ß
+		auto undo_info = do_move(m);
+		bool mate = generate_move_list().size() == 0;
+		undo_move(undo_info);
+		if (mate)
+		{
+			return std::vector<Move> { m };
+		}
+	}
+	return std::vector<Move>();
 }

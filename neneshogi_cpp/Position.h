@@ -41,5 +41,11 @@ public:
 	bool _in_check_black();
 	void rotate_position_inplace();
 	void make_dnn_input(int format, py::array_t<float, py::array::c_style | py::array::forcecast> dst);
+	/* 詰み探索
+	詰みが見つかったら、応手手順(std::vector<Move>)を返す。
+	長さ0なら詰みが見つからなかった場合(or自分が詰んでいる場合)。
+	タプルで手数と手順を返したいが、やり方がわからない。
+	*/
+	std::vector<Move> mate_search();
 };
 

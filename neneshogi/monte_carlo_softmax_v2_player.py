@@ -390,7 +390,7 @@ class MonteCarloSoftmaxV2Player(Engine):
         self.softmax_temperature = float(options["softmax_temperature"])
         if self.softmax_temperature <= 0.0:
             # パラメータチューニング用に、ランダムにsoftmax temperatureを1.0から0.01まで振る
-            self.softmax_temperature = float(10.0**(np.random.random() * -2.0))
+            self.softmax_temperature = float(10.0 ** (np.random.random() * -2.0))
             logger.info(f"random softmax temperature: {self.softmax_temperature}")
         self.cp_scale = int(options["cp_scale"])
         self.time_divider = float(options["time_divider"])
@@ -640,6 +640,18 @@ class MonteCarloSoftmaxV2Player(Engine):
         if old_request_count > 0:
             logger.info(f"removed old request: {old_request_count}")
         move_str = "resign"
+        logger.info(f"running mate search")
+        mate_search_result = self.pos.mate_search()
+        logger.info(f"mate_search: {mate_search_result}")
+        if len(mate_search_result) > 0:
+            # 詰みが見つかったのでその手を指す
+            if is_go:
+                usi_info_writer.write_pv(pv=mate_search_result,
+                                         depth=len(mate_search_result),
+                                         time=0,
+                                         nodes=0,
+                                         score_mate=len(mate_search_result))
+            return mate_search_result[0].to_usi_string()
         # self.mate_searcher.stop_signal.value = 0
         # self.mate_searcher.command_queue.put(MateSearcherCommand.go(self.pos))
         tree_root = self.generate_tree_root()
