@@ -104,6 +104,7 @@ class NNSearchProcess:
         self.force_flush = False
 
     def run(self):
+        self._run_on_dummy_data()
         while True:
             eval_item = self.nn_queue.get()  # type: NNEvalItem
             if eval_item is None:
@@ -120,6 +121,14 @@ class NNSearchProcess:
                 # バッチサイズ分データが集まったので計算
                 self._process_batch()
             self.force_flush = False
+
+    def _run_on_dummy_data(self):
+        """
+        ダミーデータで一度DNNを走らせてCUDAのコンパイル等を完了させる
+        :return:
+        """
+        dummy_dnn_inputs = [np.zeros((1, 61, 9, 9), dtype=np.float32) for i in range(self.nn_info.batch_size)]
+        self._evaluate(dummy_dnn_inputs)
 
     def _add_to_pending(self, eval_item: "NNEvalItem"):
         # 評価する行列単位に分割して処理待ちバッファに入れる
@@ -412,6 +421,9 @@ class MonteCarloSoftmaxV2Player(Engine):
                                                              nn_info, self.nn_queue, self.value_queue,
                                                              self.value_put_ctr))
         self.nn_search_process.start()
+        # プロセス起動準備ができてから、stdinから何か受け取らないとサブプロセスの処理が始まらない模様。
+        # multiprocessingとmultithreadingを両方使っているためのバグか？
+        time.sleep(5)
         self.ttable = {}
         self.side_buffer = {}
         self.root_side_id = None
