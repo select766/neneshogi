@@ -14,7 +14,7 @@ extensions = [
 
 setup(
     name="neneshogi",
-    version="0.1",
+    version="1.0",
     packages=find_packages(),
     test_suite='test',
     cmdclass={"build_ext": build_ext},
