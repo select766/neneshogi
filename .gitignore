@@ -117,3 +117,6 @@ ENV/
 !/neneshogi/neneshogi_cpp.pyd
 /neneshogi_cpp/x64
 .vs
+
+# model release
+!/data/model/20170917200841

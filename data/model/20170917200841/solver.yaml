@@ -1,0 +1,8 @@
+batchsize: 256
+epoch: 10
+id: '20170917200841'
+optimizer: MomentumSGD
+optimizer_kwargs:
+  lr: 0.01
+  momentum: 0.9
+val_batchsize: 512

@@ -1,0 +1,13 @@
+dataset_code: kifu_dataset.py
+train:
+  class: PackedKifuDataset
+  kwargs:
+    kifu_path: G:\mhidaka\shogi\mykifu\generated_kifu_depth_6_shuffled.bin
+    n_samples: 100000000
+    sample_offset: 100000
+val:
+  class: PackedKifuDataset
+  kwargs:
+    kifu_path: G:\mhidaka\shogi\mykifu\generated_kifu_depth_6_shuffled.bin
+    n_samples: 100000
+    sample_offset: 0
