@@ -1,0 +1,92 @@
+From eb9c7cb0271d437a6bfe7c135b6993fe9c9a0ece Mon Sep 17 00:00:00 2001
+From: select766 <select766@outlook.jp>
+Date: Mon, 4 Sep 2017 21:21:18 +0900
+Subject: [PATCH] =?UTF-8?q?=E5=90=88=E6=B3=95=E6=89=8B=E7=94=9F=E6=88=90?=
+ =?UTF-8?q?=E3=83=87=E3=83=BC=E3=82=BF=E3=82=BB=E3=83=83=E3=83=88=E4=BD=9C?=
+ =?UTF-8?q?=E6=88=90=E3=82=B3=E3=83=BC=E3=83=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ source/engine/user-engine/user-search.cpp | 44 +++++++++++++++++++++++++++++++
+ source/extra/config.h                     |  4 +--
+ 2 files changed, 46 insertions(+), 2 deletions(-)
+
+diff --git a/source/engine/user-engine/user-search.cpp b/source/engine/user-engine/user-search.cpp
+index 90cf53a..9d76fc8 100644
+--- a/source/engine/user-engine/user-search.cpp
++++ b/source/engine/user-engine/user-search.cpp
+@@ -3,6 +3,46 @@
+ // USI拡張コマンド"user"が送られてくるとこの関数が呼び出される。実験に使ってください。
+ void user_test(Position& pos_, istringstream& is)
+ {
++    //合法手生成のテストケースとなるデータをYAML形式で出力する。
++
++    //手番(0=先手,1=後手)
++    cout << "side_to_move: " << (int)pos_.side_to_move() << endl;
++
++    //各マスにある駒(整数81要素)、SQ_11(１一)~SQ_99(９九)、+1=下(段)、+9=左(筋)
++    cout << "piece_on: [";
++    for (Square i = SQ_11; i < SQ_NB; i++) {
++        cout << (int)pos_.piece_on(i) << ",";
++    }
++    cout << "]" << endl;
++
++    //持ち駒の個数、手番,歩～金(7要素)の2次元配列
++    cout << "hand_of: [";
++    for (Color c = BLACK; c < COLOR_NB; c++) {
++        cout << "[";
++        Hand h = pos_.hand_of(c);
++        for (Piece pt = PAWN; pt <= GOLD; pt++) {
++            cout << hand_count(h, pt) << ",";
++        }
++        cout << "],";
++    }
++    cout << "]" << endl;
++
++    //王手かどうか
++    cout << "in_check: " << (pos_.in_check() ? "true" : "false") << endl;
++
++    //SFEN
++    cout << "sfen: \"" << pos_.sfen() << "\"" << endl;
++
++    //合法手("7g7f"などの文字列配列)、詰みなら要素数0
++    //千日手となる手を含む
++    //歩が成らない手は含まない
++    cout << "legal_moves: [";
++    for (auto m : MoveList<LEGAL>(pos_))
++        cout << "\"" << m.move << "\",";
++    cout << "]" << endl;
++
++    //YAMLにおけるドキュメントの終了
++    cout << "---" << endl;
+ }
+ 
+ #ifdef USER_ENGINE
+@@ -32,6 +72,10 @@ void MainThread::think()
+   //  for (auto th : Threads.slaves) th->start_searching();
+   //  Thread::search();
+   //  for (auto th : Threads.slaves) th->wait_for_search_finished();
++    //ランダムプレイヤーを実装しておく
++    MoveList<LEGAL> ml(rootPos);
++    Move bestMove = (ml.size() == 0) ? MOVE_RESIGN : ml.at(rand() % ml.size()).move;
++    sync_cout << "bestmove " << bestMove << sync_endl;
+ }
+ 
+ // 探索本体。並列化している場合、ここがslaveのエントリーポイント。
+diff --git a/source/extra/config.h b/source/extra/config.h
+index cdc13a9..cb569db 100644
+--- a/source/extra/config.h
++++ b/source/extra/config.h
+@@ -401,8 +401,8 @@
+ // --- ユーザーの自作エンジンとして実行ファイルを公開するとき用の設定集
+ 
+ #ifdef USER_ENGINE
+-#define ENGINE_NAME "YaneuraOu user engine"
+-#define EVAL_KPP
++#define ENGINE_NAME "YaneuraOu user engine movegen"
++#define EVAL_NO_USE
+ #endif
+ 
+ // --------------------

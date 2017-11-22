@@ -1,0 +1,10 @@
+やねうら王の改造版バイナリのソースコード。
+本家リポジトリからのパッチを置いている。
+
+YaneuraOu-movegen.exe
+分岐元コミット df56a8675a3c34b1ab6cabde892986174f4f40cf
+パッチ YaneuraOu-movegen.patch
+
+YaneuraOu-kifu-decoder.exe
+分岐元コミット df56a8675a3c34b1ab6cabde892986174f4f40cf
+次のファイルを上書き user-search.cpp
