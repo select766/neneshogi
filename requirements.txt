@@ -1,2 +1,2 @@
-chainer==2.1.0
-cupy==1.0.3
+chainer>=3.0.0
+cupy>=2.0.0
