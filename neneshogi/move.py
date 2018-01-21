@@ -1,7 +1,5 @@
 from typing import List, Tuple
 
-import numpy as np
-
 
 class Color:
     """
@@ -186,7 +184,9 @@ class Square:
         """
         return sq % 9
 
-from .neneshogi_cpp import Move, UndoMoveInfo
+
+from neneshogi_cpp import Move, UndoMoveInfo
+
 #
 # class Move:
 #     """

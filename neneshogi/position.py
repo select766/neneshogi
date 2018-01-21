@@ -7,7 +7,8 @@ import hashlib
 
 import numpy as np
 from .move import Color, Piece, Square, Move, UndoMoveInfo
-from .neneshogi_cpp import Position as CPosition
+from neneshogi_cpp import Position as CPosition
+
 
 class Position(CPosition):
     """
@@ -175,9 +176,9 @@ class Position(CPosition):
         :return:
         """
         rot = Position()
-        #rot.board[:] = Position._ROTATE_PIECE_TABLE[self.board[::-1]]
+        # rot.board[:] = Position._ROTATE_PIECE_TABLE[self.board[::-1]]
         rot.set_board(Position._ROTATE_PIECE_TABLE[self.board[::-1]])
-        #rot.hand[:] = self.hand[::-1, :]
+        # rot.hand[:] = self.hand[::-1, :]
         rot.set_hand(self.hand[::-1, :].copy())
         rot.side_to_move = Color.invert(self.side_to_move)
         return rot
