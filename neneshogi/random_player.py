@@ -8,7 +8,7 @@ from logging import getLogger
 
 logger = getLogger(__name__)
 
-from .position import Position
+from .position import Position, PositionHelper
 from .engine import Engine
 from .usi_info_writer import UsiInfoWriter
 
@@ -34,7 +34,7 @@ class RandomPlayer(Engine):
         pass
 
     def position(self, command: str):
-        self.pos.set_usi_position(command)
+        PositionHelper.set_usi_position(self.pos, command)
 
     def go(self, usi_info_writer: UsiInfoWriter, go_receive_time: float, btime: Optional[int] = None,
            wtime: Optional[int] = None, byoyomi: Optional[int] = None, binc: Optional[int] = None,

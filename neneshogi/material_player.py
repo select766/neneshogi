@@ -11,7 +11,7 @@ from logging import getLogger
 logger = getLogger(__name__)
 
 from .move import Piece, Color, Move
-from .position import Position
+from .position import Position, PositionHelper
 from .engine import Engine
 from .usi_info_writer import UsiInfoWriter
 
@@ -86,7 +86,7 @@ class MaterialPlayer(Engine):
         self.best_move_table = {}
 
     def position(self, command: str):
-        self.pos.set_usi_position(command)
+        PositionHelper.set_usi_position(self.pos, command)
 
     def go(self, usi_info_writer: UsiInfoWriter, go_receive_time: float, btime: Optional[int] = None,
            wtime: Optional[int] = None, byoyomi: Optional[int] = None, binc: Optional[int] = None,
@@ -117,38 +117,41 @@ class MaterialPlayer(Engine):
                 best_move = None
                 random.shuffle(move_list)
                 for move in move_list:
-                    undo_info = pos.do_move(move)
+                    pos.do_move(move)
                     child_val = -self._search(depth - 1, False, -beta, -alpha)
-                    pos.undo_move(undo_info)
+                    pos.undo_move()
                     if child_val > alpha:
                         alpha = child_val
                         best_move = move
                     if alpha >= beta:
                         break
                 if best_move is not None:
-                    self.best_move_table[pos.hash() % 65521] = best_move
+                    self.best_move_table[pos.key() % 65521] = best_move
                 if root:
                     self.best_move = best_move
                 return alpha
         else:
             # evaluate
-            val = np.sum(PIECE_VALUES_BOARD[pos.board])
-            val += np.sum(PIECE_VALUES_HAND * pos.hand[0])
-            val -= np.sum(PIECE_VALUES_HAND * pos.hand[1])
-            if pos.side_to_move == Color.WHITE:
+            val = np.sum(PIECE_VALUES_BOARD[pos.get_board()])
+            hand = pos.get_hand()
+            val += np.sum(PIECE_VALUES_HAND * hand[0])
+            val -= np.sum(PIECE_VALUES_HAND * hand[1])
+            if pos.side_to_move() == Color.WHITE:
                 val = -val
         return val
 
     def _retrieve_pv(self) -> List[Move]:
         pos = self.pos
         pv = []
-        undo_stack = []
+        undo_count = 0
         for i in range(self.depth):  # 千日手で無限ループを回避するため
-            move = self.best_move_table.get(pos.hash() % 65521)
+            move = self.best_move_table.get(pos.key() % 65521)
             if move is None:
                 break
-            undo_stack.append(pos.do_move(move))
+            pos.do_move(move)
+            undo_count += 1
             pv.append(move)
-        while len(undo_stack) > 0:
-            pos.undo_move(undo_stack.pop())
+        while undo_count > 0:
+            pos.undo_move()
+            undo_count -= 1
         return pv

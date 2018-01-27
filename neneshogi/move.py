@@ -185,95 +185,9 @@ class Square:
         return sq % 9
 
 
-from neneshogi_cpp import Move, UndoMoveInfo
-
-#
-# class Move:
-#     """
-#     指し手を表すクラス(数値定数ではない)
-#     immutableとして扱う
-#     """
-#     move_from: int
-#     move_to: int
-#     move_dropped_piece: int  # 打った駒種(手番関係なし)
-#     is_promote: bool
-#     is_drop: bool
-#
-#     def __init__(self, move_from: int, move_to: int, move_dropped_piece: int, is_promote: bool, is_drop: bool):
-#         self.move_from = move_from
-#         self.move_to = move_to
-#         self.move_dropped_piece = move_dropped_piece
-#         self.is_promote = is_promote
-#         self.is_drop = is_drop
-#
-#     @staticmethod
-#     def make_move(move_from: int, move_to: int, is_promote: bool = False) -> "Move":
-#         return Move(move_from, move_to, 0, is_promote, False)
-#
-#     @staticmethod
-#     def make_move_drop(move_dropped_piece: int, move_to: int) -> "Move":
-#         return Move(0, move_to, move_dropped_piece, False, True)
-#
-#     @staticmethod
-#     def from_usi_string(move_usi: str) -> "Move":
-#         """
-#         USI形式の指し手からインスタンスを生成
-#         :param move_usi: 例: "7g7f"
-#         :return:
-#         """
-#         to_file = ord(move_usi[2]) - ord("1")
-#         to_rank = ord(move_usi[3]) - ord("a")
-#         from_file = ord(move_usi[0]) - ord("1")
-#         if from_file > 8:
-#             # 駒打ち("G*5b")
-#             drop_pt = Piece.piece_from_char(move_usi[0])
-#             return Move.make_move_drop(drop_pt, Square.from_file_rank(to_file, to_rank))
-#         else:
-#             from_rank = ord(move_usi[1]) - ord("a")
-#             is_promote = len(move_usi) >= 5 and move_usi[4] == "+"
-#             return Move.make_move(Square.from_file_rank(from_file, from_rank),
-#                                   Square.from_file_rank(to_file, to_rank),
-#                                   is_promote)
-#
-#     def to_usi_string(self) -> str:
-#         """
-#         USI形式の指し手文字列を作成
-#         :return:
-#         """
-#         to_file_c = chr(Square.file_of(self.move_to) + ord("1"))
-#         to_rank_c = chr(Square.rank_of(self.move_to) + ord("a"))
-#         if self.is_drop:
-#             drop_pt_c = Piece.char_from_piece(self.move_dropped_piece)
-#             return drop_pt_c + "*" + to_file_c + to_rank_c
-#         else:
-#             from_file_c = chr(Square.file_of(self.move_from) + ord("1"))
-#             from_rank_c = chr(Square.rank_of(self.move_from) + ord("a"))
-#             if self.is_promote:
-#                 return from_file_c + from_rank_c + to_file_c + to_rank_c + "+"
-#             else:
-#                 return from_file_c + from_rank_c + to_file_c + to_rank_c
-#
-#     def __str__(self):
-#         return self.to_usi_string()
-#
-#     def __eq__(self, other: "Move") -> bool:
-#         return self.move_from == other.move_from and self.move_to == other.move_to and \
-#                self.move_dropped_piece == self.move_dropped_piece and self.is_promote == other.is_promote and \
-#                self.is_drop == other.is_drop
-#
-#     def __hash__(self) -> int:
-#         """
-#         やねうら王のMoveと同じ16bit以下の数値
-#         :return:
-#         """
-#         return self.move_to + self.move_from * 128 + self.move_dropped_piece * 128 + \
-#                int(self.is_drop) * 16384 + int(self.is_promote) * 32768
+from yaneuraou import Move
 
 
-# class UndoMoveInfo:
-#     board: np.ndarray
-#     hand: np.ndarray
-#
-#     def __init__(self, pos: "Position"):
-#         self.board = pos.board.copy()
-#         self.hand = pos.hand.copy()
+class UndoMoveInfo:
+    # TODO remove it
+    pass
