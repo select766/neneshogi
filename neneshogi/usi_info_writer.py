@@ -24,6 +24,9 @@ class UsiInfoWriter:
         add_value_if_not_none("seldepth", seldepth)
         add_value_if_not_none("time", time)
         add_value_if_not_none("nodes", nodes)
+        if time is not None and time > 0 and nodes is not None:
+            items.append("nps")
+            items.append(str(int(nodes * 1000 / time)))
 
         if score_cp is not None:
             items.extend(["score", "cp", str(int(score_cp))])

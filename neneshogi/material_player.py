@@ -2,6 +2,7 @@
 駒得評価のみで探索するプレイヤーの実装
 """
 import random
+import time
 from typing import Dict, Optional, Tuple, List
 import numpy as np
 
@@ -63,6 +64,7 @@ class MaterialPlayer(Engine):
     depth: int
     best_move: Move
     best_move_table: Dict[int, Move]  # 16bit int
+    nodes: int
 
     def __init__(self):
         self.pos = Position()
@@ -90,16 +92,21 @@ class MaterialPlayer(Engine):
            wtime: Optional[int] = None, byoyomi: Optional[int] = None, binc: Optional[int] = None,
            winc: Optional[int] = None):
         self.best_move = None
+        self.nodes = 0
+        go_begin_time = time.time()
         for depth in range(1, self.depth + 1):
             val = self._search(depth, True, -60000, 60000)
             pv = self._retrieve_pv()
-            usi_info_writer.write_pv(pv=pv, depth=depth, score_cp=int(val))
+            go_elapsed_time = time.time() - go_begin_time
+            usi_info_writer.write_pv(pv=pv, depth=depth, score_cp=int(val), time=int(go_elapsed_time * 1000),
+                                     nodes=self.nodes)
             if self.best_move is None:
                 return "resign"
         return self.best_move.to_usi_string()
 
     def _search(self, depth: int, root: bool, alpha: int, beta: int) -> int:
         pos = self.pos
+        self.nodes += 1
         val = 0
         if depth > 0:
             move_list = self.pos.generate_move_list()
