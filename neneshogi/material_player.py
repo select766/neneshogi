@@ -5,6 +5,7 @@ import random
 import time
 from typing import Dict, Optional, Tuple, List
 import numpy as np
+import threading
 
 from logging import getLogger
 
@@ -53,7 +54,8 @@ def _make_value_table():
     hand_values = []
     for i in range(1, 8):
         hand_values.append(PIECE_VALUES[i])
-    PIECE_VALUES_HAND = np.array(hand_values, dtype=np.int32)
+    piece_values_hand_black = np.array(hand_values, dtype=np.int32)
+    PIECE_VALUES_HAND = np.vstack([piece_values_hand_black, -piece_values_hand_black])
 
 
 _make_value_table()
@@ -65,6 +67,7 @@ class MaterialPlayer(Engine):
     best_move: Move
     best_move_table: Dict[int, Move]  # 16bit int
     nodes: int
+    timeup: bool
 
     def __init__(self):
         self.pos = Position()
@@ -84,9 +87,13 @@ class MaterialPlayer(Engine):
     def isready(self, options: Dict[str, str]):
         self.depth = int(options["depth"])
         self.best_move_table = {}
+        self.timeup = False
 
     def position(self, command: str):
         PositionHelper.set_usi_position(self.pos, command)
+
+    def _set_timeup(self):
+        self.timeup = True
 
     def go(self, usi_info_writer: UsiInfoWriter, go_receive_time: float, btime: Optional[int] = None,
            wtime: Optional[int] = None, byoyomi: Optional[int] = None, binc: Optional[int] = None,
@@ -94,6 +101,11 @@ class MaterialPlayer(Engine):
         self.best_move = None
         self.nodes = 0
         go_begin_time = time.time()
+        self.timeup = False
+        t = None
+        if byoyomi is not None:
+            t = threading.Timer(byoyomi / 1000.0 - 1.0, self._set_timeup)
+            t.start()
         for depth in range(1, self.depth + 1):
             val = self._search(depth, True, -60000, 60000)
             pv = self._retrieve_pv()
@@ -101,13 +113,21 @@ class MaterialPlayer(Engine):
             usi_info_writer.write_pv(pv=pv, depth=depth, score_cp=int(val), time=int(go_elapsed_time * 1000),
                                      nodes=self.nodes)
             if self.best_move is None:
-                return "resign"
+                break
+            if self.timeup:
+                break
+        if t is not None:
+            t.cancel()
+        if self.best_move is None:
+            self.best_move = Move.MOVE_RESIGN
         return self.best_move.to_usi_string()
 
     def _search(self, depth: int, root: bool, alpha: int, beta: int) -> int:
         pos = self.pos
         self.nodes += 1
         val = 0
+        if self.timeup:
+            return 0
         if depth > 0:
             move_list = self.pos.generate_move_list()
             if len(move_list) == 0:
@@ -125,6 +145,9 @@ class MaterialPlayer(Engine):
                         best_move = move
                     if alpha >= beta:
                         break
+                if self.timeup:
+                    # 置換表を更新しない
+                    return 0
                 if best_move is not None:
                     self.best_move_table[pos.key() % 65521] = best_move
                 if root:
@@ -133,9 +156,7 @@ class MaterialPlayer(Engine):
         else:
             # evaluate
             val = np.sum(PIECE_VALUES_BOARD[pos.get_board()])
-            hand = pos.get_hand()
-            val += np.sum(PIECE_VALUES_HAND * hand[0])
-            val -= np.sum(PIECE_VALUES_HAND * hand[1])
+            val += np.sum(PIECE_VALUES_HAND * pos.get_hand())
             if pos.side_to_move() == Color.WHITE:
                 val = -val
         return val
