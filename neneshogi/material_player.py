@@ -148,6 +148,8 @@ class MaterialPlayer(Engine):
             move = self.best_move_table.get(pos.key() % 65521)
             if move is None:
                 break
+            if not pos.legal(move):
+                break
             pos.do_move(move)
             undo_count += 1
             pv.append(move)
