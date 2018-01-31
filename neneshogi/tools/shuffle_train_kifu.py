@@ -18,7 +18,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("src")
     parser.add_argument("dst")
-    parser.add_argument("--record_size", type=int, default=36)
+    parser.add_argument("--record_size", type=int, default=40)
     parser.add_argument("--count", type=int, default=1024 * 1024 * 10)
     parser.add_argument("--buffer_size", type=int, default=1024 * 1024 * 1024)
     args = parser.parse_args()

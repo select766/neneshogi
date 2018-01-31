@@ -36,7 +36,7 @@ class Model(chainer.Chain):
         chains["bn_first"] = L.BatchNormalization(ch)
         chains["res_blocks"] = chainer.ChainList(*[ResBlock(ch, ch) for i in range(depth)])
         chains["move_res_block"] = ResBlock(ch, ch)
-        chains["move_conv"] = L.Convolution2D(None, 27, 3, pad=1)
+        chains["move_conv"] = L.Convolution2D(None, 139, 3, pad=1)
         chains["value_res_block"] = ResBlock(ch, ch)
         chains["value_fc"] = L.Linear(None, 1)
         super().__init__(**chains)
@@ -63,19 +63,12 @@ class Model(chainer.Chain):
 
         return m, v
 
-    def __call__(self, x, move, value):
+    def __call__(self, x, move_index, move_array, legal_move_array, eval_score, game_result):
         pred_move, pred_value = self.forward(x)
-        loss_move = F.softmax_cross_entropy(pred_move, move)
-        # 勝率でL2ロス計算 -> 学習初期が不安定
-        # loss_value = F.mean_squared_error(F.sigmoid(pred_value), F.sigmoid((value / 600.0).astype(np.float32)))
-        # 教師局面の勝敗をランダムにサンプリングし、sigmoid cross entropy
-        xp = chainer.cuda.get_array_module(value)
-        sigmoid_value = (xp.tanh(value / 1200.0) + 1.0) * 0.5
-        #sampled_win = (sigmoid_value > xp.random.random(sigmoid_value.shape)).astype(np.int32)
-        sampled_win = (sigmoid_value > 0.5).astype(np.int32)
-        loss_value = F.sigmoid_cross_entropy(pred_value, sampled_win)
+        loss_move = F.softmax_cross_entropy(pred_move, move_index)
+        loss_value = F.mean_squared_error(pred_value, game_result)
 
         loss_total = loss_move * self.weight_move + loss_value * self.weight_value
-        accuracy = F.accuracy(pred_move, move)
+        accuracy = F.accuracy(pred_move, move_index)
         chainer.report({"loss": loss_total, "loss_move": loss_move, "loss_value": loss_value, "accuracy": accuracy}, self)
         return loss_total
