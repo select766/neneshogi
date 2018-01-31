@@ -66,7 +66,7 @@ class Model(chainer.Chain):
     def __call__(self, x, move_index, move_array, legal_move_array, eval_score, game_result):
         pred_move, pred_value = self.forward(x)
         loss_move = F.softmax_cross_entropy(pred_move, move_index)
-        loss_value = F.mean_squared_error(pred_value, game_result)
+        loss_value = F.mean_squared_error(F.tanh(pred_value), game_result)
 
         loss_total = loss_move * self.weight_move + loss_value * self.weight_value
         accuracy = F.accuracy(pred_move, move_index)
