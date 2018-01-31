@@ -35,7 +35,7 @@ class PackedKifuDataset():
         self._length = n_samples
         self.packed_array = np.memmap(kifu_path, dtype=np.uint8, mode="r",
                                       offset=self.record_byte_size * sample_offset,
-                                      shape=(self._length, 40))
+                                      shape=(self._length, self.record_byte_size))
 
     def _decode_one(self, packed_sample):
         pos = self.pos
