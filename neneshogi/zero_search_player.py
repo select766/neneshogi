@@ -24,12 +24,14 @@ class ZeroSearchPlayer(Engine):
     model: chainer.Chain
     gpu: int
     dnn_converter: DNNConverter
+    softmax_temperature: float
 
     def __init__(self):
         self.pos = Position()
         self.model = None
         self.gpu = -1
         self.dnn_converter = DNNConverter(1, 1)
+        self.softmax_temperature = 1.0
 
     @property
     def name(self):
@@ -41,9 +43,11 @@ class ZeroSearchPlayer(Engine):
 
     def get_options(self):
         return {"model_path": "filename default <empty>",
+                "softmax_temperature": "string default 1",
                 "gpu": "spin default -1 min -1 max 0"}
 
     def isready(self, options: Dict[str, str]):
+        self.softmax_temperature = float(options["softmax_temperature"])
         self.gpu = int(options["gpu"])
         self.model = load_model(options["model_path"])
         if self.gpu >= 0:
@@ -68,7 +72,7 @@ class ZeroSearchPlayer(Engine):
             model_output_var_move, model_output_var_value = self.model.forward(dnn_input)
             model_output = chainer.cuda.to_cpu(model_output_var_move.data)  # type: np.ndarray
         # softmaxで確率とみなす（合法手の和=1）
-        mo_exp = np.exp(model_output.flatten()) * legal_move_mask.flatten()
+        mo_exp = np.exp((model_output.flatten() - np.max(model_output)) * self.softmax_temperature) * legal_move_mask.flatten()
         model_output = mo_exp / np.sum(mo_exp)
         # 確率にしたがって手を選択
         move_index = np.random.choice(np.arange(len(model_output)), p=model_output)
