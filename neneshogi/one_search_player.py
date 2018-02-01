@@ -11,7 +11,8 @@ logger = getLogger(__name__)
 import numpy as np
 import chainer
 
-from .position import Position, Color, Square, Piece, Move
+from .position import Position, Color, Square, Piece, Move, PositionHelper
+from yaneuraou import DNNConverter
 from .engine import Engine
 from .usi_info_writer import UsiInfoWriter
 from .train_config import load_model
@@ -22,11 +23,13 @@ class OneSearchPlayer(Engine):
     pos: Position
     model: chainer.Chain
     gpu: int
+    dnn_converter: DNNConverter
 
     def __init__(self):
         self.pos = Position()
         self.model = None
         self.gpu = -1
+        self.dnn_converter = DNNConverter(1, 1)
 
     @property
     def name(self):
@@ -48,54 +51,23 @@ class OneSearchPlayer(Engine):
             self.model.to_gpu()
 
     def position(self, command: str):
-        self.pos.set_usi_position(command)
+        PositionHelper.set_usi_position(self.pos, command)
 
-    def _make_dnn_input(self, pos: Position):
-        """
-        与えられたPositionからDNNへの入力行列を生成する。
-        :return:
-        """
-        # 常に現在の手番が先手となるように盤面を与える
-        pos_from_side = pos
-        if pos_from_side.side_to_move == Color.WHITE:
-            pos_from_side = pos_from_side._rotate_position()
-        ary = np.zeros((61, 81), dtype=np.float32)
-        # 盤上の駒
-        for sq in range(Square.SQ_NB):
-            piece = pos_from_side.board[sq]
-            ch = -1
-            if piece >= Piece.W_PAWN:
-                ch = piece - Piece.W_PAWN + 14
-            elif piece >= Piece.B_PAWN:
-                ch = piece - Piece.B_PAWN
-            if ch >= 0:
-                ary[ch, sq] = 1.0
-        # 持ち駒
-        for color in range(Color.COLOR_NB):
-            for i in range(Piece.PIECE_HAND_NB - Piece.PIECE_HAND_ZERO):
-                hand_count = pos_from_side.hand[color][i]
-                ch = color * 7 + 28 + i
-                ary[ch, :] = hand_count
-        # 段・筋
-        for sq in range(Square.SQ_NB):
-            ary[Square.rank_of(sq) + 42, sq] = 1.0
-            ary[Square.file_of(sq) + 51, sq] = 1.0
-        # 定数1
-        ary[60, :] = 1.0
-        return ary.reshape((1, 61, 9, 9))
-
-    def _make_strategy(self, usi_info_writer: UsiInfoWriter, move_list: List[Move]):
+    def _make_strategy(self, usi_info_writer: UsiInfoWriter):
         """
         1手展開した結果に対し、評価関数を呼び出して手を決定する
         :return:
         """
+        if self.pos.is_mated():
+            return Move.MOVE_RESIGN
         dnn_inputs = []
+        move_list = self.pos.generate_move_list()
         for move in move_list:
-            undo_info = self.pos.do_move(move)
-            dnn_inputs.append(self._make_dnn_input(self.pos))
-            self.pos.undo_move(undo_info)
+            self.pos.do_move(move)
+            dnn_inputs.append(self.dnn_converter.get_board_array(self.pos))
+            self.pos.undo_move()
         with chainer.using_config("train", False):
-            dnn_input = np.concatenate(dnn_inputs, axis=0)
+            dnn_input = np.stack(dnn_inputs, axis=0)
             if self.gpu >= 0:
                 dnn_input = chainer.cuda.to_gpu(dnn_input)
             model_output_var_move, model_output_var_value = self.model.forward(dnn_input)
@@ -112,9 +84,5 @@ class OneSearchPlayer(Engine):
     def go(self, usi_info_writer: UsiInfoWriter, go_receive_time: float, btime: Optional[int] = None,
            wtime: Optional[int] = None, byoyomi: Optional[int] = None, binc: Optional[int] = None,
            winc: Optional[int] = None):
-        move_list = self.pos.generate_move_list()
-        if len(move_list) == 0:
-            return "resign"
-
-        move = self._make_strategy(usi_info_writer, move_list)
+        move = self._make_strategy(usi_info_writer)
         return move.to_usi_string()
