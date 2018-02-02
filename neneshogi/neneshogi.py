@@ -22,6 +22,7 @@ from .alpha_beta_player import AlphaBetaPlayer
 from .monte_carlo_softmax_v2_player import MonteCarloSoftmaxV2Player
 from .material_player import MaterialPlayer
 from .mcts_naive_player import MCTSNaivePlayer
+from .mcts_player import MCTSPlayer
 
 engines = {"RandomPlayer": RandomPlayer,
            "ZeroSearchPlayer": ZeroSearchPlayer,
@@ -32,7 +33,8 @@ engines = {"RandomPlayer": RandomPlayer,
            "AlphaBetaPlayer": AlphaBetaPlayer,
            "MonteCarloSoftmaxV2Player": MonteCarloSoftmaxV2Player,
            "MaterialPlayer": MaterialPlayer,
-           "MCTSNaivePlayer": MCTSNaivePlayer
+           "MCTSNaivePlayer": MCTSNaivePlayer,
+           "MCTSPlayer": MCTSPlayer,
            }
 
 profile_path = None
