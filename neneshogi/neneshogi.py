@@ -53,7 +53,6 @@ def main():
         Usi.name_suffix = args.suffix
 
         engine = engines[args.engine]()
-        chainer.config.use_cudnn = "never"  # TODO: bugfix
         logger.debug("Start USI")
         usi = Usi(engine)
         usi.run()

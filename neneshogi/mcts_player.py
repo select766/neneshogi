@@ -170,25 +170,21 @@ class EvalWaitItem:
     move_indices: List[int]
 
 
-def evaluator_main(config: EvaluatorConfig, eval_queue: multiprocessing.Queue, result_queue: multiprocessing.Queue):
-    model = load_model(config.model_path)
-    if config.gpu >= 0:
-        chainer.cuda.get_device_from_id(config.gpu).use()
-        model.to_gpu()
+def evaluator_loop(model, config: EvaluatorConfig, eval_queue: multiprocessing.Queue,
+                   result_queue: multiprocessing.Queue):
     while True:
         eval_items = eval_queue.get()  # type: List[EvalItem]
         logger.info("Got eval items")
         if eval_items is None:
             break
         dnn_input = np.stack([eval_item.dnn_input for eval_item in eval_items])
-        with chainer.using_config("train", False):
-            if config.gpu >= 0:
-                dnn_input = chainer.cuda.to_gpu(dnn_input)
-            model_output_var_move, model_output_var_value = model.forward(dnn_input)
-            model_output_var_move = F.softmax(model_output_var_move)
-            model_output_var_value = F.tanh(model_output_var_value)
-            model_output_var_move = chainer.cuda.to_cpu(model_output_var_move.data)
-            model_output_var_value = chainer.cuda.to_cpu(model_output_var_value.data)
+        if config.gpu >= 0:
+            dnn_input = chainer.cuda.to_gpu(dnn_input)
+        model_output_var_move, model_output_var_value = model.forward(dnn_input)
+        model_output_var_move = F.softmax(model_output_var_move)
+        model_output_var_value = F.tanh(model_output_var_value)
+        model_output_var_move = chainer.cuda.to_cpu(model_output_var_move.data)
+        model_output_var_value = chainer.cuda.to_cpu(model_output_var_value.data)
         result_items = []  # type: List[ResultItem]
         for i in range(len(eval_items)):
             result_item = ResultItem()
@@ -200,6 +196,27 @@ def evaluator_main(config: EvaluatorConfig, eval_queue: multiprocessing.Queue, r
         result_queue.put(result_items)
 
 
+def evaluator_main(init_queue: multiprocessing.Queue, init_complete_event: multiprocessing.Event,
+                   eval_queue: multiprocessing.Queue, result_queue: multiprocessing.Queue):
+    logger.info("Evaluator main")
+    init_complete_event.set()
+    while True:
+        config = init_queue.get()  # type: EvaluatorConfig
+        if config is None:
+            break
+        logger.info("Initializing evaluator")
+        model = load_model(config.model_path)
+        if config.gpu >= 0:
+            chainer.cuda.get_device_from_id(config.gpu).use()
+            model.to_gpu()
+
+        init_complete_event.set()
+        with chainer.using_config("train", False):
+            with chainer.using_config("enable_backprop", False):
+                evaluator_loop(model, config, eval_queue, result_queue)
+    logger.info("Exiting evaluator")
+
+
 class MCTSPlayer(Engine):
     pos: Position
     nodes: int
@@ -208,6 +225,8 @@ class MCTSPlayer(Engine):
     tree_config: TreeConfig
     evaluator_config: EvaluatorConfig
     evaluator_process: multiprocessing.Process
+    eval_init_queue: multiprocessing.Queue
+    eval_init_complete_event: multiprocessing.Event
     eval_queue: multiprocessing.Queue
     result_queue: multiprocessing.Queue
     eval_local_queue: List[EvalItem]
@@ -218,6 +237,17 @@ class MCTSPlayer(Engine):
         self.model = None
         self.gpu = -1
         self.dnn_converter = DNNConverter(1, 1)
+        self.eval_init_complete_event = multiprocessing.Event()
+        self.eval_init_queue = multiprocessing.Queue()
+        self.eval_queue = multiprocessing.Queue(maxsize=4)
+        self.result_queue = multiprocessing.Queue()
+        self.evaluator_process = multiprocessing.Process(target=evaluator_main,
+                                                         args=(self.eval_init_queue, self.eval_init_complete_event,
+                                                               self.eval_queue, self.result_queue),
+                                                         daemon=True)
+        self.evaluator_process.start()
+        # この時点でevaluator processがちゃんと動き出すまで待つ(sys.stdinを読む前に)
+        self.eval_init_complete_event.wait()
 
     @property
     def name(self):
@@ -244,17 +274,13 @@ class MCTSPlayer(Engine):
         eval_config = EvaluatorConfig()
         eval_config.gpu = int(options["gpu"])
         eval_config.model_path = options["model_path"]
+        self.eval_init_queue.put(eval_config)
+        logger.info("Waiting evaluator to initialize")
+        self.eval_init_complete_event.wait()
+        self.eval_init_complete_event.clear()
         self.eval_local_queue = []
         self.eval_wait_map = {}
-        self.eval_queue = multiprocessing.Queue(maxsize=4)
-        self.result_queue = multiprocessing.Queue()
-        self.evaluator_process = multiprocessing.Process(target=evaluator_main,
-                                                         args=(eval_config, self.eval_queue, self.result_queue),
-                                                         daemon=True)
-        self.evaluator_process.start()
-        # プロセス起動準備ができてから、stdinから何か受け取らないとサブプロセスの処理が始まらない模様。
-        # multiprocessingとmultithreadingを両方使っているためのバグか？
-        time.sleep(2)
+        logger.info("End of isready")
 
     def position(self, command: str):
         PositionHelper.set_usi_position(self.pos, command)
@@ -388,7 +414,7 @@ class MCTSPlayer(Engine):
         self._close_evaluator()
 
     def gameover(self, result: str):
-        self._close_evaluator()
+        pass
 
     def _close_evaluator(self):
         if self.evaluator_process is not None:

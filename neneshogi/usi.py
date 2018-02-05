@@ -36,16 +36,14 @@ class Usi:
         :return: quitコマンドが来たらメソッドが終了する
         """
         info_writer = UsiInfoWriter(self._put_lines)
-        #self.stdin_queue = queue.Queue()
-        #self.stdin_thread = threading.Thread(target=stdin_thread, args=(self.stdin_queue,), daemon=True)
-        #self.stdin_thread.start()
-        for recv_line in sys.stdin:
-            recv_time = time.time()
-        # while True:
-        #     try:
-        #         recv_line, recv_time = self.stdin_queue.get(timeout=1)
-        #     except queue.Empty:
-        #         continue
+        self.stdin_queue = queue.Queue()
+        self.stdin_thread = threading.Thread(target=stdin_thread, args=(self.stdin_queue,), daemon=True)
+        self.stdin_thread.start()
+        while True:
+            try:
+                recv_line, recv_time = self.stdin_queue.get(timeout=1)
+            except queue.Empty:
+                continue
             recv_line_nonl = recv_line.rstrip()
             logger.info(f"USI< {recv_line_nonl}")
             tokens = recv_line_nonl.split(" ")  # type: List[str]
