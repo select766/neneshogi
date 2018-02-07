@@ -70,6 +70,7 @@ class TreeNode:
         n_children = len(move_list)
         if n_children == 0:
             self.terminal = True
+            self.children = None
             return
         self.terminal = False
         self.value_p = value_p
@@ -140,8 +141,31 @@ class TreeNode:
         assert not self.terminal
         value_n_exp = np.power(self.value_n, (1.0 / self.tree_config.play_temperature))
         probs = value_n_exp / np.sum(value_n_exp)
+        logger.info("Probs: {}".format([(self.move_list[i], probs[i]) for i in np.argsort(-probs)]))
         selected_edge = np.random.choice(np.arange(len(probs)), p=probs)
         return self.move_list[selected_edge], probs[selected_edge]
+
+    def _depth_stat_inner(self, cur_depth: int, buf: np.ndarray):
+        """
+        深さごとのノード数を調べる
+        :return:
+        """
+        buf[cur_depth] += 1
+        if self.children is None:
+            return
+        for child in self.children:
+            if child is not None:
+                child._depth_stat_inner(cur_depth+1, buf)
+
+    def depth_stat(self):
+        """
+        深さごとのノード数を調べる
+        :return:
+        """
+        buf = np.zeros((100, ), dtype=np.int32)
+        self._depth_stat_inner(0, buf)
+        max_depth = np.flatnonzero(buf)[-1]
+        logger.info(f"Depth max={max_depth}, hist={buf[:max_depth+1]}")
 
 
 class EvaluatorConfig:
@@ -194,6 +218,7 @@ def evaluator_loop(model, config: EvaluatorConfig, eval_queue: multiprocessing.Q
             result_items.append(result_item)
         logger.info("Sending result")
         result_queue.put(result_items)
+    logger.info("Stopping evaluator")
 
 
 def evaluator_main(init_queue: multiprocessing.Queue, init_complete_event: multiprocessing.Event,
@@ -248,6 +273,7 @@ class MCTSPlayer(Engine):
         self.evaluator_process.start()
         # この時点でevaluator processがちゃんと動き出すまで待つ(sys.stdinを読む前に)
         self.eval_init_complete_event.wait()
+        self.eval_init_complete_event.clear()
 
     @property
     def name(self):
@@ -288,7 +314,7 @@ class MCTSPlayer(Engine):
     def _append_eval_item(self, eval_item: EvalItem, flush: bool):
         self.eval_local_queue.append(eval_item)
         if len(self.eval_local_queue) >= self.batch_size or flush:
-            logger.info("Sending eval item")
+            #logger.info("Sending eval item")
             self._flush_eval_item()
 
     def _flush_eval_item(self):
@@ -371,6 +397,7 @@ class MCTSPlayer(Engine):
 
         put_nodes = 0
         completed_nodes = 0
+        dup_nodes = 0
         while completed_nodes < self.nodes:
             if put_nodes < self.nodes:
                 if not self._search_once(root_node):
@@ -394,11 +421,12 @@ class MCTSPlayer(Engine):
                         eval_wait_item.parent.children[eval_wait_item.parent_edge_index] = new_node
                     else:
                         eval_wait_item.parent._restore_virtual_loss(eval_wait_item.parent_edge_index)
+                        dup_nodes += 1
                         # logger.warning("Duplicate new node; discard")
             except queue.Empty:
                 pass
-        logger.info("All nodes evaluation complete")
-        logger.info("Vloss: {}".format(root_node.virtual_loss_ctr))
+        logger.info(f"All nodes evaluation complete, nodes={completed_nodes}, dup={dup_nodes}")
+        root_node.depth_stat()
         best_move, prob = root_node.play()
         usi_info_writer.write_string(f"{best_move.to_usi_string()}({int(prob*100)}%)")
         return best_move
@@ -414,12 +442,13 @@ class MCTSPlayer(Engine):
         self._close_evaluator()
 
     def gameover(self, result: str):
-        pass
+        self.eval_queue.put(None)
 
     def _close_evaluator(self):
         if self.evaluator_process is not None:
             logger.info("Closing evaluator process")
             self.eval_queue.put(None)
+            self.eval_init_queue.put(None)
             self.evaluator_process.join(timeout=10)
             if self.evaluator_process.exitcode is None:
                 logger.warning("Terminating evalautor process")
