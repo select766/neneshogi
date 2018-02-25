@@ -15,11 +15,6 @@ from .usi import Usi
 from .random_player import RandomPlayer
 from .zero_search_player import ZeroSearchPlayer
 from .one_search_player import OneSearchPlayer
-from .simple_multi_serach_player import SimpleMultiSearchPlayer
-from .narrow_search_player import NarrowSearchPlayer
-from .prob_search_player import ProbSearchPlayer
-from .alpha_beta_player import AlphaBetaPlayer
-from .monte_carlo_softmax_v2_player import MonteCarloSoftmaxV2Player
 from .material_player import MaterialPlayer
 from .mcts_naive_player import MCTSNaivePlayer
 from .mcts_player import MCTSPlayer
@@ -27,11 +22,6 @@ from .mcts_player import MCTSPlayer
 engines = {"RandomPlayer": RandomPlayer,
            "ZeroSearchPlayer": ZeroSearchPlayer,
            "OneSearchPlayer": OneSearchPlayer,
-           "SimpleMultiSearchPlayer": SimpleMultiSearchPlayer,
-           "NarrowSearchPlayer": NarrowSearchPlayer,
-           "ProbSearchPlayer": ProbSearchPlayer,
-           "AlphaBetaPlayer": AlphaBetaPlayer,
-           "MonteCarloSoftmaxV2Player": MonteCarloSoftmaxV2Player,
            "MaterialPlayer": MaterialPlayer,
            "MCTSNaivePlayer": MCTSNaivePlayer,
            "MCTSPlayer": MCTSPlayer,
