@@ -156,6 +156,8 @@ class AutoMatch:
         option_values.update(engine_config.options)
         for option_name, option_value in option_values.items():
             self._engine_write(engine_idx, f"setoption name {option_name} value {option_value}")
+
+    def _isready_engine(self, engine_idx: int):
         self._engine_write(engine_idx, "isready")
         while True:
             line = self._engine_read(engine_idx)
@@ -179,7 +181,6 @@ class AutoMatch:
             position_command += " moves "
             position_command += " ".join(map(str, board.move_stack))  # 7g7f 3c3d ...
         go_command = self.engine_config_list[engine_idx].go
-        self._log(f"setting timeout {self.rule.max_go_time}")
         self.watchdog = threading.Timer(self.rule.max_go_time, self._go_timeout)
         self.watchdog.start()
         self._engine_write(engine_idx, position_command)
@@ -198,6 +199,7 @@ class AutoMatch:
         self._log("go command timeout!")
         for handle in self.engine_handles:
             handle.terminate()  # readがEOFを起こすはず
+        os._exit(1)
 
     def _check_repetition_with_check(self, board: shogi.Board) -> bool:
         """
@@ -238,6 +240,9 @@ class AutoMatch:
 
     def _run_single_match(self, black_engine: int) -> MatchResult:
         for i in range(2):
+            # ゲームごとにisreadyが必要。
+            self._isready_engine(i)
+        for i in range(2):
             self._engine_write(i, "usinewgame")
         current_engine = black_engine
         board = shogi.Board()
@@ -257,7 +262,8 @@ class AutoMatch:
                 gameover_reason = "win"
                 break
             move_obj = shogi.Move.from_usi(bestmove)
-            if not board.is_legal(move_obj):
+            if move_obj not in board.generate_legal_moves():
+                # board.is_legal()は、相手陣から引くときに成る場合がなぜかillegalとなってしまう
                 # 非合法手(連続王手の千日手は判定されない)
                 winner = 1 - current_engine
                 gameover_reason = "illegal_move"
