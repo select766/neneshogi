@@ -2,6 +2,7 @@
 自動自己対戦プログラム
 ルールおよびエンジンの実行設定2つを受け取り対局させ、結果をログに出力する。
 neneshogi自体には依存しない。合法手の判定等はpython-shogiモジュールを活用。
+指し手に時間がかかりすぎている場合はハングアップとみなして強制終了する。
 
 python -m neneshogi.auto_match rule.yaml engine1.yaml engine2.yaml
 """
@@ -14,6 +15,7 @@ import re
 from collections import OrderedDict
 from typing import Dict, List
 import time
+import threading
 import yaml
 
 import shogi
@@ -33,11 +35,13 @@ class Rule:
     n_match: int
     max_moves: int
     priority_low: bool
+    max_go_time: float
 
     def __init__(self):
         self.n_match = 1
         self.max_moves = 256
         self.priority_low = False
+        self.max_go_time = 60
 
     @classmethod
     def load(cls, rule_file) -> "Rule":
@@ -90,12 +94,14 @@ class AutoMatch:
     rule: Rule
     engine_config_list: List[EngineConfig]
     engine_handles: List[subprocess.Popen]
+    watchdog: threading.Timer
 
     def __init__(self, rule: Rule, engine_config_list: List[EngineConfig]):
         self.rule = rule
         assert len(engine_config_list) == 2
         self.engine_config_list = engine_config_list
         self._log_file = None
+        self.watchdog = None
 
     def _log(self, msg: str):
         if self._log_file is not None:
@@ -125,6 +131,9 @@ class AutoMatch:
     def _engine_read(self, engine_idx: int) -> str:
         msg = self.engine_handles[engine_idx].stdout.readline().rstrip()
         self._log(f"<{engine_idx}:{msg}")
+        if len(msg) == 0:
+            self._log("EOF detected: aborting")
+            sys.exit(1)
         return msg
 
     def _init_engine(self, engine_idx: int, engine_config: EngineConfig):
@@ -170,6 +179,9 @@ class AutoMatch:
             position_command += " moves "
             position_command += " ".join(map(str, board.move_stack))  # 7g7f 3c3d ...
         go_command = self.engine_config_list[engine_idx].go
+        self._log(f"setting timeout {self.rule.max_go_time}")
+        self.watchdog = threading.Timer(self.rule.max_go_time, self._go_timeout)
+        self.watchdog.start()
         self._engine_write(engine_idx, position_command)
         self._engine_write(engine_idx, go_command)
         move = None
@@ -178,7 +190,14 @@ class AutoMatch:
             if line.startswith("bestmove "):
                 move = line.split(" ")[1]
                 break
+        self.watchdog.cancel()
+        self.watchdog = None
         return move
+
+    def _go_timeout(self):
+        self._log("go command timeout!")
+        for handle in self.engine_handles:
+            handle.terminate()  # readがEOFを起こすはず
 
     def _check_repetition_with_check(self, board: shogi.Board) -> bool:
         """
