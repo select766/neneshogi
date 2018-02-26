@@ -14,6 +14,7 @@ import time
 logger = getLogger(__name__)
 
 import numpy as np
+import scipy.special
 import chainer
 import chainer.functions as F
 
@@ -139,8 +140,12 @@ class TreeNode:
 
     def play(self) -> Tuple[Move, float]:
         assert not self.terminal
-        value_n_exp = np.power(self.value_n, (1.0 / self.tree_config.play_temperature))
-        probs = value_n_exp / np.sum(value_n_exp)
+        # logsumexpを使ってオーバーフロー回避
+        # value_n_exp = np.power(self.value_n, (1.0 / self.tree_config.play_temperature))
+        # probs = value_n_exp / np.sum(value_n_exp)
+        temp_log_value_n = (1.0 / self.tree_config.play_temperature) * np.log(self.value_n)
+        denom = scipy.special.logsumexp(temp_log_value_n)  # type: np.ndarray
+        probs = np.exp(temp_log_value_n - denom)
         logger.info("Probs: {}".format([(self.move_list[i], probs[i]) for i in np.argsort(-probs)]))
         selected_edge = np.random.choice(np.arange(len(probs)), p=probs)
         return self.move_list[selected_edge], probs[selected_edge]
@@ -155,14 +160,14 @@ class TreeNode:
             return
         for child in self.children:
             if child is not None:
-                child._depth_stat_inner(cur_depth+1, buf)
+                child._depth_stat_inner(cur_depth + 1, buf)
 
     def depth_stat(self):
         """
         深さごとのノード数を調べる
         :return:
         """
-        buf = np.zeros((100, ), dtype=np.int32)
+        buf = np.zeros((100,), dtype=np.int32)
         self._depth_stat_inner(0, buf)
         max_depth = np.flatnonzero(buf)[-1]
         logger.info(f"Depth max={max_depth}, hist={buf[:max_depth+1]}")
@@ -314,7 +319,7 @@ class MCTSPlayer(Engine):
     def _append_eval_item(self, eval_item: EvalItem, flush: bool):
         self.eval_local_queue.append(eval_item)
         if len(self.eval_local_queue) >= self.batch_size or flush:
-            #logger.info("Sending eval item")
+            # logger.info("Sending eval item")
             self._flush_eval_item()
 
     def _flush_eval_item(self):
