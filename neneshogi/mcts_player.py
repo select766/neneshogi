@@ -23,7 +23,18 @@ from yaneuraou import DNNConverter
 from .engine import Engine
 from .usi_info_writer import UsiInfoWriter
 from .train_config import load_model
+from .mcts_evaluator import EvalItem, ResultItem, EvaluatorConfig, EvaluatorBase, EvaluatorSingleGPU
 from . import util
+
+
+class EvalWaitItem:
+    """
+    評価結果を用いてノード作成に必要な情報
+    """
+    parent: "TreeNode"
+    parent_edge_index: int
+    move_list: List[Move]
+    move_indices: List[int]
 
 
 class TreeConfig:
@@ -173,112 +184,23 @@ class TreeNode:
         logger.info(f"Depth max={max_depth}, hist={buf[:max_depth+1]}")
 
 
-class EvaluatorConfig:
-    model_path: str
-    gpu: int
-
-
-class EvalItem:
-    eval_id: int
-    dnn_input: np.ndarray
-
-
-class ResultItem:
-    eval_id: int
-    move_probs: np.ndarray
-    score: float
-
-
-class EvalWaitItem:
-    """
-    評価結果を用いてノード作成に必要な情報
-    """
-    parent: "TreeNode"
-    parent_edge_index: int
-    move_list: List[Move]
-    move_indices: List[int]
-
-
-def evaluator_loop(model, config: EvaluatorConfig, eval_queue: multiprocessing.Queue,
-                   result_queue: multiprocessing.Queue):
-    while True:
-        eval_items = eval_queue.get()  # type: List[EvalItem]
-        logger.info("Got eval items")
-        if eval_items is None:
-            break
-        dnn_input = np.stack([eval_item.dnn_input for eval_item in eval_items])
-        if config.gpu >= 0:
-            dnn_input = chainer.cuda.to_gpu(dnn_input)
-        model_output_var_move, model_output_var_value = model.forward(dnn_input)
-        model_output_var_move = F.softmax(model_output_var_move)
-        model_output_var_value = F.tanh(model_output_var_value)
-        model_output_var_move = chainer.cuda.to_cpu(model_output_var_move.data)
-        model_output_var_value = chainer.cuda.to_cpu(model_output_var_value.data)
-        result_items = []  # type: List[ResultItem]
-        for i in range(len(eval_items)):
-            result_item = ResultItem()
-            result_item.eval_id = eval_items[i].eval_id
-            result_item.score = model_output_var_value[i]
-            result_item.move_probs = model_output_var_move[i]
-            result_items.append(result_item)
-        logger.info("Sending result")
-        result_queue.put(result_items)
-    logger.info("Stopping evaluator")
-
-
-def evaluator_main(init_queue: multiprocessing.Queue, init_complete_event: multiprocessing.Event,
-                   eval_queue: multiprocessing.Queue, result_queue: multiprocessing.Queue):
-    logger.info("Evaluator main")
-    init_complete_event.set()
-    while True:
-        config = init_queue.get()  # type: EvaluatorConfig
-        if config is None:
-            break
-        logger.info("Initializing evaluator")
-        model = load_model(config.model_path)
-        if config.gpu >= 0:
-            chainer.cuda.get_device_from_id(config.gpu).use()
-            model.to_gpu()
-
-        init_complete_event.set()
-        with chainer.using_config("train", False):
-            with chainer.using_config("enable_backprop", False):
-                evaluator_loop(model, config, eval_queue, result_queue)
-    logger.info("Exiting evaluator")
-
-
 class MCTSPlayer(Engine):
     pos: Position
     nodes: int
     batch_size: int
     dnn_converter: DNNConverter
     tree_config: TreeConfig
-    evaluator_config: EvaluatorConfig
-    evaluator_process: multiprocessing.Process
-    eval_init_queue: multiprocessing.Queue
-    eval_init_complete_event: multiprocessing.Event
-    eval_queue: multiprocessing.Queue
-    result_queue: multiprocessing.Queue
-    eval_local_queue: List[EvalItem]
-    eval_wait_map: Dict[int, EvalWaitItem]
+    evaluator: EvaluatorBase
 
-    def __init__(self):
+    def __init__(self, evaluator: EvaluatorBase = None):
         self.pos = Position()
         self.model = None
         self.gpu = -1
         self.dnn_converter = DNNConverter(1, 1)
-        self.eval_init_complete_event = multiprocessing.Event()
-        self.eval_init_queue = multiprocessing.Queue()
-        self.eval_queue = multiprocessing.Queue(maxsize=4)
-        self.result_queue = multiprocessing.Queue()
-        self.evaluator_process = multiprocessing.Process(target=evaluator_main,
-                                                         args=(self.eval_init_queue, self.eval_init_complete_event,
-                                                               self.eval_queue, self.result_queue),
-                                                         daemon=True)
-        self.evaluator_process.start()
-        # この時点でevaluator processがちゃんと動き出すまで待つ(sys.stdinを読む前に)
-        self.eval_init_complete_event.wait()
-        self.eval_init_complete_event.clear()
+        if evaluator is None:
+            evaluator = EvaluatorSingleGPU()
+        evaluator.start()
+        self.evaluator = evaluator
 
     @property
     def name(self):
@@ -301,31 +223,17 @@ class MCTSPlayer(Engine):
         self.tree_config = TreeConfig()
         self.tree_config.c_puct = float(options["c_puct"])
         self.tree_config.play_temperature = float(options["play_temperature"])
-        self.batch_size = int(options["batch_size"])
-        eval_config = EvaluatorConfig()
-        eval_config.gpu = int(options["gpu"])
-        eval_config.model_path = options["model_path"]
-        self.eval_init_queue.put(eval_config)
-        logger.info("Waiting evaluator to initialize")
-        self.eval_init_complete_event.wait()
-        self.eval_init_complete_event.clear()
-        self.eval_local_queue = []
-        self.eval_wait_map = {}
+        if isinstance(self.evaluator, EvaluatorSingleGPU):
+            logger.info("Waiting evaluator to initialize")
+            self.evaluator.set_batch_size(int(options["batch_size"]))
+            eval_config = EvaluatorConfig()
+            eval_config.gpu = int(options["gpu"])
+            eval_config.model_path = options["model_path"]
+            self.evaluator.set_config(eval_config)
         logger.info("End of isready")
 
     def position(self, command: str):
         PositionHelper.set_usi_position(self.pos, command)
-
-    def _append_eval_item(self, eval_item: EvalItem, flush: bool):
-        self.eval_local_queue.append(eval_item)
-        if len(self.eval_local_queue) >= self.batch_size or flush:
-            # logger.info("Sending eval item")
-            self._flush_eval_item()
-
-    def _flush_eval_item(self):
-        if len(self.eval_local_queue) > 0:
-            self.eval_queue.put(self.eval_local_queue)
-            self.eval_local_queue = []
 
     def _search_once(self, root_node: TreeNode) -> bool:
         """
@@ -350,15 +258,13 @@ class MCTSPlayer(Engine):
             dnn_input = self.dnn_converter.get_board_array(self.pos)
             eval_wait_item = EvalWaitItem()
             eval_item = EvalItem()
-            eval_item.eval_id = id(eval_wait_item)
             eval_item.dnn_input = dnn_input
-            self._append_eval_item(eval_item, False)
             eval_wait_item.parent = tsr.final_node
             eval_wait_item.parent_edge_index = tsr.final_edge_index
             eval_wait_item.move_list = move_list
             eval_wait_item.move_indices = np.array(
                 [self.dnn_converter.get_move_index(self.pos, move) for move in move_list])
-            self.eval_wait_map[eval_item.eval_id] = eval_wait_item
+            self.evaluator.put(eval_item, eval_wait_item)
             put_item = True
         for j in range(len(tsr.moves)):
             self.pos.undo_move()
@@ -375,19 +281,18 @@ class MCTSPlayer(Engine):
             return None
         dnn_input = self.dnn_converter.get_board_array(self.pos)
         eval_item = EvalItem()
-        eval_item.eval_id = id(eval_item)
         eval_item.dnn_input = dnn_input
-        self._append_eval_item(eval_item, True)
+        self.evaluator.put(eval_item, "root")
+        self.evaluator.flush()
         move_indices = np.array([self.dnn_converter.get_move_index(self.pos, move) for move in move_list])
         while True:
-            result_items = self.result_queue.get()
-            for result_item in result_items:  # type: ResultItem
-                if result_item.eval_id == eval_item.eval_id:
-                    # root nodeの評価結果
-                    return TreeNode(self.tree_config, None, 0, move_list,
-                                    result_item.score, result_item.move_probs[move_indices])
-                else:
-                    logger.warning("Mismatch result for root node")
+            result_item, tag = self.evaluator.get(True)
+            if tag == "root":
+                # root nodeの評価結果
+                return TreeNode(self.tree_config, None, 0, move_list,
+                                result_item.score, result_item.move_probs[move_indices])
+            else:
+                logger.warning("Mismatch result for root node")
 
     def _make_strategy(self, usi_info_writer: UsiInfoWriter):
         """
@@ -404,30 +309,26 @@ class MCTSPlayer(Engine):
         completed_nodes = 0
         dup_nodes = 0
         while completed_nodes < self.nodes:
-            if put_nodes < self.nodes:
+            if put_nodes < self.nodes and self.evaluator.pending_count() < 2:
                 if not self._search_once(root_node):
                     # 評価不要ノードだったら直ちに完了とみなす
                     completed_nodes += 1
                 put_nodes += 1
                 if put_nodes == self.nodes:
-                    self._flush_eval_item()
+                    self.evaluator.flush()
             try:
-                result_items = self.result_queue.get_nowait()
-                for result_item in result_items:  # type: ResultItem
-                    completed_nodes += 1
-                    if result_item.eval_id not in self.eval_wait_map:
-                        logger.warning("Unknown result item received")
-                        continue
-                    eval_wait_item = self.eval_wait_map.pop(result_item.eval_id)
-                    if eval_wait_item.parent.children[eval_wait_item.parent_edge_index] is None:
-                        new_node = TreeNode(self.tree_config, eval_wait_item.parent, eval_wait_item.parent_edge_index,
-                                            eval_wait_item.move_list, result_item.score,
-                                            result_item.move_probs[eval_wait_item.move_indices])
-                        eval_wait_item.parent.children[eval_wait_item.parent_edge_index] = new_node
-                    else:
-                        eval_wait_item.parent._restore_virtual_loss(eval_wait_item.parent_edge_index)
-                        dup_nodes += 1
-                        # logger.warning("Duplicate new node; discard")
+                result_item, eval_wait_item = self.evaluator.get(False)  # type: Tuple[ResultItem, EvalWaitItem]
+
+                completed_nodes += 1
+                if eval_wait_item.parent.children[eval_wait_item.parent_edge_index] is None:
+                    new_node = TreeNode(self.tree_config, eval_wait_item.parent, eval_wait_item.parent_edge_index,
+                                        eval_wait_item.move_list, result_item.score,
+                                        result_item.move_probs[eval_wait_item.move_indices])
+                    eval_wait_item.parent.children[eval_wait_item.parent_edge_index] = new_node
+                else:
+                    eval_wait_item.parent._restore_virtual_loss(eval_wait_item.parent_edge_index)
+                    dup_nodes += 1
+                    # logger.warning("Duplicate new node; discard")
             except queue.Empty:
                 pass
         logger.info(f"All nodes evaluation complete, nodes={completed_nodes}, dup={dup_nodes}")
@@ -447,18 +348,9 @@ class MCTSPlayer(Engine):
         self._close_evaluator()
 
     def gameover(self, result: str):
-        self.eval_queue.put(None)
+        self.evaluator.discard_pending_batches()
 
     def _close_evaluator(self):
-        if self.evaluator_process is not None:
-            logger.info("Closing evaluator process")
-            self.eval_queue.put(None)
-            self.eval_init_queue.put(None)
-            self.evaluator_process.join(timeout=10)
-            if self.evaluator_process.exitcode is None:
-                logger.warning("Terminating evalautor process")
-                # not exited
-                self.evaluator_process.terminate()
-            else:
-                logger.info("Closed evaluator process successfully")
-            self.evaluator_process = None
+        if self.evaluator is not None:
+            self.evaluator.terminate()
+            self.evaluator = None
