@@ -31,6 +31,11 @@ def yaml_dump(obj: object, path: str):
         yaml.dump(obj, f, default_flow_style=False)
 
 
+def yaml_safe_dump(obj: object, path: str):
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(obj, f, default_flow_style=False)
+
+
 class Rule:
     n_match: int
     max_moves: int
@@ -304,7 +309,7 @@ class AutoMatch:
         data.rule = self.rule
         data.engine_config_list = self.engine_config_list
         data.match_results = match_results
-        yaml_dump(data, path)
+        yaml_safe_dump(data, path)
 
     def run_matches(self, log_prefix: str):
         self.engine_handles = []
