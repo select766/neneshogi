@@ -14,7 +14,6 @@ import numpy as np
 import chainer
 import chainer.functions as F
 
-from .position import Position, Color, Square, Piece, Move, PositionHelper
 from .train_config import load_model
 
 

@@ -154,7 +154,7 @@ class TreeNode:
         # logsumexpを使ってオーバーフロー回避
         # value_n_exp = np.power(self.value_n, (1.0 / self.tree_config.play_temperature))
         # probs = value_n_exp / np.sum(value_n_exp)
-        temp_log_value_n = (1.0 / self.tree_config.play_temperature) * np.log(self.value_n)
+        temp_log_value_n = (1.0 / self.tree_config.play_temperature) * np.log(self.value_n + 1e-20)
         denom = scipy.special.logsumexp(temp_log_value_n)  # type: np.ndarray
         probs = np.exp(temp_log_value_n - denom)
         logger.info("Probs: {}".format([(self.move_list[i], probs[i]) for i in np.argsort(-probs)]))
@@ -191,9 +191,16 @@ class MCTSPlayer(Engine):
     dnn_converter: DNNConverter
     tree_config: TreeConfig
     evaluator: EvaluatorBase
+    kifu_gen: bool
 
-    def __init__(self, evaluator: EvaluatorBase = None):
+    def __init__(self, evaluator: EvaluatorBase = None, kifu_gen: bool = False):
+        """
+        MCTSPlayer Engine初期化
+        :param evaluator: NN Evaluatorのインスタンス
+        :param kifu_gen: 棋譜生成モード
+        """
         self.pos = Position()
+        self.kifu_gen = kifu_gen
         self.model = None
         self.gpu = -1
         self.dnn_converter = DNNConverter(1, 1)
@@ -302,13 +309,16 @@ class MCTSPlayer(Engine):
         root_node = self._generate_root_node()
         logger.info("Generated root node")
         if root_node is None:
-            return Move.MOVE_RESIGN
-        self.eval_wait_map = {}
+            if self.kifu_gen:
+                return Move.MOVE_RESIGN, 0.0, None, None
+            else:
+                return Move.MOVE_RESIGN
 
         put_nodes = 0
         completed_nodes = 0
         dup_nodes = 0
         while completed_nodes < self.nodes:
+            # TODO evaluatorのblock条件をみなおしてパフォーマンス改善
             if put_nodes < self.nodes and self.evaluator.pending_count() < 2:
                 if not self._search_once(root_node):
                     # 評価不要ノードだったら直ちに完了とみなす
@@ -317,7 +327,7 @@ class MCTSPlayer(Engine):
                 if put_nodes == self.nodes:
                     self.evaluator.flush()
             try:
-                result_item, eval_wait_item = self.evaluator.get(False)  # type: Tuple[ResultItem, EvalWaitItem]
+                result_item, eval_wait_item = self.evaluator.get(self.evaluator.pending_count() >= 2)  # type: Tuple[ResultItem, EvalWaitItem]
 
                 completed_nodes += 1
                 if eval_wait_item.parent.children[eval_wait_item.parent_edge_index] is None:
@@ -335,7 +345,11 @@ class MCTSPlayer(Engine):
         root_node.depth_stat()
         best_move, prob = root_node.play()
         usi_info_writer.write_string(f"{best_move.to_usi_string()}({int(prob*100)}%)")
-        return best_move
+        if self.kifu_gen:
+            # bestmove, ルートの勝敗スコア, 指し手リスト、各指し手の選択回数
+            return best_move, root_node.score, root_node.move_list, root_node.value_n
+        else:
+            return best_move
 
     @util.release_gpu_memory_pool
     def go(self, usi_info_writer: UsiInfoWriter, go_receive_time: float, btime: Optional[int] = None,
