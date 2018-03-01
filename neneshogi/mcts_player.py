@@ -296,8 +296,12 @@ class MCTSPlayer(Engine):
             result_item, tag = self.evaluator.get(True)
             if tag == "root":
                 # root nodeの評価結果
+                move_probs = result_item.move_probs[move_indices]
+                if self.kifu_gen:
+                    # 探索をばらけさせるための乱数(AlphaZero準拠)
+                    move_probs += np.random.dirichlet(np.ones_like(move_probs) * 0.15)
                 return TreeNode(self.tree_config, None, 0, move_list,
-                                result_item.score, result_item.move_probs[move_indices])
+                                result_item.score, move_probs)
             else:
                 logger.warning("Mismatch result for root node")
 
