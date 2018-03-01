@@ -136,7 +136,6 @@ def generate_second_input(eval_queue: multiprocessing.Queue, batch_size: int, it
 
 def sendback_result(model_output, eval_items_list: List[List[EvalItem]], result_queues: List[multiprocessing.Queue]):
     model_output_var_move, model_output_var_value = model_output
-
     ctr = 0
     for eval_items in eval_items_list:
         client_idx = eval_items[0].src
@@ -148,7 +147,6 @@ def sendback_result(model_output, eval_items_list: List[List[EvalItem]], result_
             result_item.move_probs = model_output_var_move[ctr]
             result_items.append(result_item)
             ctr += 1
-        logger.info("Sending result")
         result_queues[client_idx].put(result_items)
 
 
@@ -163,7 +161,6 @@ def evaluator_loop(model, config: EvaluatorConfig, eval_queue: multiprocessing.Q
 
     while True:
         # GPU上の計算を開始
-        logger.info("gpu write start")
         gpu_write_start = time.time()
         dnn_input = dnn_inputs.popleft()
         if config.gpu >= 0:
@@ -177,7 +174,8 @@ def evaluator_loop(model, config: EvaluatorConfig, eval_queue: multiprocessing.Q
             sendback_result(dnn_outputs.popleft(), dnn_input_aux_items.popleft(), result_queues)
 
         # 次のバッチを生成
-        excess_item = generate_second_input(eval_queue, gpu_batch_size, item_shape, gpu_write_start + est_gpu_time, dnn_inputs,
+        excess_item = generate_second_input(eval_queue, gpu_batch_size, item_shape, gpu_write_start + est_gpu_time,
+                                            dnn_inputs,
                                             dnn_input_aux_items, excess_item)
 
         # GPUから結果回収
@@ -191,7 +189,8 @@ def evaluator_loop(model, config: EvaluatorConfig, eval_queue: multiprocessing.Q
             est_gpu_time = max(est_gpu_time + 0.001, 0.01)
         else:
             est_gpu_time = min(est_gpu_time + 0.001, 1.0)
-        logger.info(f"block time: {gpu_block_time}, est_time: {est_gpu_time}")
+        logger.info(
+            f"gpu turnaround time: {gpu_read_end - gpu_write_start}, block time: {gpu_block_time}, est_time: {est_gpu_time}")
         dnn_outputs.append((model_output_var_move, model_output_var_value))
 
 
