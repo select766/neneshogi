@@ -15,6 +15,7 @@ import sys
 import queue
 from typing import List, Dict
 import gzip
+import argparse
 import pickle
 import uuid
 import time
@@ -24,14 +25,56 @@ import numpy as np
 from .usi_info_writer import UsiInfoWriter
 from .position import Position, Color, Square, Piece, Move, PositionHelper
 
+from logging import getLogger
+
+logger = getLogger(__name__)
+from . import util
 from .mcts_evaluator import EvaluatorConfig
 from .mcts_evaluator_shared import DNNServer, EvaluatorShared
 from .mcts_player import MCTSPlayer
 
 
 class MCTSKifuGen:
-    def __init__(self):
-        pass
+    def __init__(self, engine_options: Dict[str, str], n_processes: int, record_dir: str):
+        self.engine_options = engine_options
+        self.n_processes = n_processes
+        self.record_dir = record_dir
+
+    def generate(self, n_games: int):
+        exit_event = multiprocessing.Event()
+        complete_queue = multiprocessing.Queue()
+        procs = []
+        evaluator_config = EvaluatorConfig()
+        evaluator_config.model_path = self.engine_options["model_path"]
+        evaluator_config.gpu = int(self.engine_options["gpu"])
+        dnn_server = DNNServer(evaluator_config, self.n_processes * 2)
+        dnn_server.start_process()
+        for i in range(self.n_processes):
+            proc = multiprocessing.Process(target=mcts_kifu_gen_process_main,
+                                           kwargs={"record_dir": "data/rl/data",
+                                                   "engine_options_list": [self.engine_options] * 2,
+                                                   "exit_event": exit_event, "complete_queue": complete_queue,
+                                                   "evaluators": [dnn_server.get_evaluator(),
+                                                                  dnn_server.get_evaluator()]})
+            proc.start()
+            procs.append(proc)
+        while n_games > 0:
+            logger.info(f"Finished one game: {complete_queue.get()}")
+            n_games -= 1
+        logger.info("Played requested games")
+        exit_event.set()
+        logger.info("Waiting workers to finish")
+        while len(procs) > 0:
+            procs[0].join(timeout=1)
+            if procs[0].exitcode is not None:
+                procs.pop(0)
+            try:
+                logger.info(f"Finished one game: {complete_queue.get_nowait()}")
+            except queue.Empty:
+                pass
+        logger.info("All workers finished, terminating dnn server")
+        dnn_server.terminate_process()
+        logger.info("DNN server finished")
 
 
 class MCTSKifuGenProcess:
@@ -125,50 +168,19 @@ class MCTSKifuGenProcess:
 
 
 def mcts_kifu_gen_process_main(**kwargs):
-    kifu_gen = MCTSKifuGenProcess(**kwargs)
-    kifu_gen.run()
+    kifu_gen_proc = MCTSKifuGenProcess(**kwargs)
+    kifu_gen_proc.run()
 
 
 def main():
-    exit_event = multiprocessing.Event()
-    complete_queue = multiprocessing.Queue()
-    need_count = 2
-    n_processes = 2
-    procs = []
-    engine_options = {
-        "model_path": r"D:\dev\shogi\neneshogi\neneshogi_private\data\model\20180131232553\weight\model_iter_390625",
-        "nodes": "1000",
-        "c_puct": 1,
-        "play_temperature": 0.1,
-        "batch_size": 16,
-        "gpu": 0}
-    evaluator_config = EvaluatorConfig()
-    evaluator_config.model_path = engine_options["model_path"]
-    evaluator_config.gpu = int(engine_options["gpu"])
-    dnn_server = DNNServer(evaluator_config, n_processes * 2)
-    dnn_server.start_process()
-    for i in range(n_processes):
-        proc = multiprocessing.Process(target=mcts_kifu_gen_process_main,
-                                       kwargs={"record_dir": "data/rl/data",
-                                               "engine_options_list": [engine_options, engine_options],
-                                               "exit_event": exit_event, "complete_queue": complete_queue,
-                                               "evaluators": [dnn_server.get_evaluator(), dnn_server.get_evaluator()]})
-        proc.start()
-        procs.append(proc)
-    while need_count > 0:
-        print(complete_queue.get())
-        need_count -= 1
-    print("need count 0")
-    exit_event.set()
-    while len(procs) > 0:
-        procs[0].join(timeout=1)
-        if procs[0].exitcode is not None:
-            procs.pop(0)
-        try:
-            print(complete_queue.get_nowait())
-        except queue.Empty:
-            pass
-    print("all joined")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("engine_options", help="yaml file of engine options")
+    parser.add_argument("dir", help="output directory")
+    parser.add_argument("games", type=int)
+    parser.add_argument("--cpus", type=int, default=multiprocessing.cpu_count())
+    args = parser.parse_args()
+    kifu_gen = MCTSKifuGen(util.yaml_load(args.engine_options), args.cpus, args.dir)
+    kifu_gen.generate(args.games)
 
 
 if __name__ == "__main__":
