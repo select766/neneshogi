@@ -24,6 +24,7 @@ class EvaluatorConfig:
 
 class EvalItem:
     eval_id: int
+    src: int
     dnn_input: np.ndarray
 
 
@@ -85,61 +86,28 @@ class EvaluatorBase(metaclass=ABCMeta):
         pass
 
 
-class EvaluatorSingleGPU(EvaluatorBase):
-    """
-    このインスタンスに対して1つのプロセスを生成し、1GPUで処理するEvaluator
-    """
-    eval_init_queue: multiprocessing.Queue
-    eval_init_complete_event: multiprocessing.Event
+class EvaluatorFrame(EvaluatorBase):
     eval_queue: multiprocessing.Queue
     result_queue: multiprocessing.Queue
     eval_local_queue: List[EvalItem]
     received_items: deque
     tags: Dict[int, object]
-    evaluator_process: multiprocessing.Process
     n_batch_put: int
     n_batch_get: int
     batch_size: int
-    first_config: bool
 
-    def __init__(self):
-        self.eval_init_queue = multiprocessing.Queue()
-        self.eval_init_complete_event = multiprocessing.Event()
-        self.eval_queue = multiprocessing.Queue()
-        self.result_queue = multiprocessing.Queue()
+    def __init__(self, eval_queue: multiprocessing.Queue, result_queue: multiprocessing.Queue):
+        self.eval_queue = eval_queue
+        self.result_queue = result_queue
         self.eval_local_queue = []
         self.tags = {}
-        self.evaluator_process = None
         self.n_batch_put = 0
         self.n_batch_get = 0
         self.batch_size = None
-        self.first_config = True
         self.received_items = deque()
-
-    def start(self):
-        self.evaluator_process = multiprocessing.Process(target=evaluator_main,
-                                                         args=(self.eval_init_queue, self.eval_init_complete_event,
-                                                               self.eval_queue, self.result_queue),
-                                                         daemon=True)
-        self.evaluator_process.start()
-
-        # この時点でevaluator processがちゃんと動き出すまで待つ(sys.stdinを読む前に)
-        self.eval_init_complete_event.wait()
-        self.eval_init_complete_event.clear()
 
     def set_batch_size(self, batch_size: int):
         self.batch_size = batch_size
-
-    def set_config(self, evaluator_config: EvaluatorConfig):
-        if self.first_config:
-            self.first_config = False
-        else:
-            # いったん評価ループを終了させる
-            self.eval_queue.put(None)
-        self.discard_pending_batches()
-        self.eval_init_queue.put(evaluator_config)
-        self.eval_init_complete_event.wait()
-        self.eval_init_complete_event.clear()
 
     def discard_pending_batches(self):
         """
@@ -174,6 +142,53 @@ class EvaluatorSingleGPU(EvaluatorBase):
         r_item = self.received_items.popleft()  # type: ResultItem
         tag = self.tags.pop(r_item.eval_id)
         return r_item, tag
+
+
+class EvaluatorSingleGPU(EvaluatorFrame):
+    """
+    このインスタンスに対して1つのプロセスを生成し、1GPUで処理するEvaluator
+    """
+    eval_init_queue: multiprocessing.Queue
+    eval_init_complete_event: multiprocessing.Event
+    eval_queue: multiprocessing.Queue
+    result_queue: multiprocessing.Queue
+    eval_local_queue: List[EvalItem]
+    received_items: deque
+    tags: Dict[int, object]
+    evaluator_process: multiprocessing.Process
+    n_batch_put: int
+    n_batch_get: int
+    batch_size: int
+    first_config: bool
+
+    def __init__(self):
+        super().__init__(multiprocessing.Queue(), multiprocessing.Queue())
+        self.eval_init_queue = multiprocessing.Queue()
+        self.eval_init_complete_event = multiprocessing.Event()
+        self.evaluator_process = None
+        self.first_config = True
+
+    def start(self):
+        self.evaluator_process = multiprocessing.Process(target=evaluator_main,
+                                                         args=(self.eval_init_queue, self.eval_init_complete_event,
+                                                               self.eval_queue, self.result_queue),
+                                                         daemon=True)
+        self.evaluator_process.start()
+
+        # この時点でevaluator processがちゃんと動き出すまで待つ(sys.stdinを読む前に)
+        self.eval_init_complete_event.wait()
+        self.eval_init_complete_event.clear()
+
+    def set_config(self, evaluator_config: EvaluatorConfig):
+        if self.first_config:
+            self.first_config = False
+        else:
+            # いったん評価ループを終了させる
+            self.eval_queue.put(None)
+        self.discard_pending_batches()
+        self.eval_init_queue.put(evaluator_config)
+        self.eval_init_complete_event.wait()
+        self.eval_init_complete_event.clear()
 
     def terminate(self):
         logger.info("Closing evaluator process")

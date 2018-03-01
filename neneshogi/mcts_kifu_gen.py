@@ -24,6 +24,8 @@ import numpy as np
 from .usi_info_writer import UsiInfoWriter
 from .position import Position, Color, Square, Piece, Move, PositionHelper
 
+from .mcts_evaluator import EvaluatorConfig
+from .mcts_evaluator_shared import DNNServer, EvaluatorShared
 from .mcts_player import MCTSPlayer
 
 
@@ -43,13 +45,13 @@ class MCTSKifuGenProcess:
     complete_queue: multiprocessing.Queue
 
     def __init__(self, record_dir: str, engine_options_list: List[Dict[str, str]], exit_event: multiprocessing.Event,
-                 complete_queue: multiprocessing.Queue):
+                 complete_queue: multiprocessing.Queue, evaluators: List[EvaluatorShared]):
         self.record_dir = record_dir
         self.exit_event = exit_event
         self.complete_queue = complete_queue
         self.engines = []
         for i in range(2):
-            engine = MCTSPlayer(evaluator=None, kifu_gen=True)
+            engine = MCTSPlayer(evaluator=evaluators[i], kifu_gen=True)
             self.engines.append(engine)
         self.engine_options_list = engine_options_list
 
@@ -131,6 +133,7 @@ def main():
     exit_event = multiprocessing.Event()
     complete_queue = multiprocessing.Queue()
     need_count = 2
+    n_processes = 2
     procs = []
     engine_options = {
         "model_path": r"D:\dev\shogi\neneshogi\neneshogi_private\data\model\20180131232553\weight\model_iter_390625",
@@ -139,11 +142,17 @@ def main():
         "play_temperature": 0.1,
         "batch_size": 16,
         "gpu": 0}
-    for i in range(2):
+    evaluator_config = EvaluatorConfig()
+    evaluator_config.model_path = engine_options["model_path"]
+    evaluator_config.gpu = int(engine_options["gpu"])
+    dnn_server = DNNServer(evaluator_config, n_processes * 2)
+    dnn_server.start_process()
+    for i in range(n_processes):
         proc = multiprocessing.Process(target=mcts_kifu_gen_process_main,
                                        kwargs={"record_dir": "data/rl/data",
                                                "engine_options_list": [engine_options, engine_options],
-                                               "exit_event": exit_event, "complete_queue": complete_queue})
+                                               "exit_event": exit_event, "complete_queue": complete_queue,
+                                               "evaluators": [dnn_server.get_evaluator(), dnn_server.get_evaluator()]})
         proc.start()
         procs.append(proc)
     while need_count > 0:

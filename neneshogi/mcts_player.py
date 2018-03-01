@@ -230,9 +230,9 @@ class MCTSPlayer(Engine):
         self.tree_config = TreeConfig()
         self.tree_config.c_puct = float(options["c_puct"])
         self.tree_config.play_temperature = float(options["play_temperature"])
+        self.evaluator.set_batch_size(int(options["batch_size"]))
         if isinstance(self.evaluator, EvaluatorSingleGPU):
             logger.info("Waiting evaluator to initialize")
-            self.evaluator.set_batch_size(int(options["batch_size"]))
             eval_config = EvaluatorConfig()
             eval_config.gpu = int(options["gpu"])
             eval_config.model_path = options["model_path"]
