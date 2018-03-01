@@ -186,7 +186,7 @@ def evaluator_loop(model, config: EvaluatorConfig, eval_queue: multiprocessing.Q
         gpu_block_time = gpu_read_end - gpu_read_start
         if gpu_block_time < 0.02:
             # タスクスイッチの関係か、処理が終わっていても16ms待たされる場合がある
-            est_gpu_time = max(est_gpu_time + 0.001, 0.01)
+            est_gpu_time = max(est_gpu_time - 0.001, 0.01)
         else:
             est_gpu_time = min(est_gpu_time + 0.001, 1.0)
         logger.info(
