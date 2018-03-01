@@ -47,7 +47,9 @@ class MCTSKifuGen:
         evaluator_config = EvaluatorConfig()
         evaluator_config.model_path = self.engine_options["model_path"]
         evaluator_config.gpu = int(self.engine_options["gpu"])
-        dnn_server = DNNServer(evaluator_config, self.n_processes * 2)
+        gpu_batch_size = int(self.engine_options["batch_size"]) * self.n_processes
+        gpu_batch_size = 2 ** int(np.log2(gpu_batch_size))
+        dnn_server = DNNServer(evaluator_config, self.n_processes * 2, gpu_batch_size)
         dnn_server.start_process()
         for i in range(self.n_processes):
             proc = multiprocessing.Process(target=mcts_kifu_gen_process_main,
