@@ -187,7 +187,7 @@ def evaluator_loop(model, config: EvaluatorConfig, eval_queue: multiprocessing.Q
         gpu_read_end = time.time()
         gpu_block_time = gpu_read_end - gpu_read_start
         if gpu_block_time < 0.01:
-            est_gpu_time -= 0.001
+            est_gpu_time = max(est_gpu_time + 0.001, 0.01)
         else:
             est_gpu_time = min(est_gpu_time + 0.001, 1.0)
         logger.info(f"block time: {gpu_block_time}, est_time: {est_gpu_time}")
