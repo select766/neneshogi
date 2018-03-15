@@ -118,7 +118,7 @@ class RLKifugenPolicy:
                 model_output = chainer.cuda.to_cpu(model_output_var_move.data)  # type: np.ndarray
             # softmaxで確率とみなす（合法手の和=1）
             mo_exp = np.exp((model_output - np.max(model_output, axis=1,
-                                                   keepdims=True)) * self.softmax_temperature) * legal_move_mask.reshape(
+                                                   keepdims=True)) / self.softmax_temperature) * legal_move_mask.reshape(
                 (self.batch_size, -1))
             model_output = mo_exp / np.sum(mo_exp, axis=1, keepdims=True)
             # 確率にしたがって手を選択
