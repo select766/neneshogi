@@ -10,6 +10,7 @@ from logging import getLogger
 logger = getLogger(__name__)
 
 import numpy as np
+import scipy.special
 import chainer
 import chainer.functions as F
 
@@ -86,7 +87,7 @@ class TreeNode:
 
     def _select_edge(self) -> int:
         assert not self.terminal
-        n_sum_sqrt = np.sqrt(np.sum(self.value_n))
+        n_sum_sqrt = np.sqrt(np.sum(self.value_n) + 0.01)
         value_u = self.value_p / (self.value_n + 1) * (self.tree_config.c_puct * n_sum_sqrt)
         best = np.argmax(self.value_q + value_u)
         return int(best)
@@ -115,8 +116,13 @@ class TreeNode:
 
     def play(self) -> Tuple[Move, float]:
         assert not self.terminal
-        value_n_exp = np.power(self.value_n, (1.0 / self.tree_config.play_temperature))
-        probs = value_n_exp / np.sum(value_n_exp)
+        # logsumexpを使ってオーバーフロー回避
+        # value_n_exp = np.power(self.value_n, (1.0 / self.tree_config.play_temperature))
+        # probs = value_n_exp / np.sum(value_n_exp)
+        temp_log_value_n = (1.0 / self.tree_config.play_temperature) * np.log(self.value_n + 1e-20)
+        denom = scipy.special.logsumexp(temp_log_value_n)  # type: np.ndarray
+        probs = np.exp(temp_log_value_n - denom)
+        logger.info("Probs: {}".format([(self.move_list[i], probs[i]) for i in np.argsort(-probs)]))
         selected_edge = np.random.choice(np.arange(len(probs)), p=probs)
         return self.move_list[selected_edge], probs[selected_edge]
 

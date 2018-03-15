@@ -18,6 +18,7 @@ from .one_search_player import OneSearchPlayer
 from .material_player import MaterialPlayer
 from .mcts_naive_player import MCTSNaivePlayer
 from .mcts_player import MCTSPlayer
+from .mcts_naive_player_exe import MCTSNaivePlayerExe
 
 engines = {"RandomPlayer": RandomPlayer,
            "ZeroSearchPlayer": ZeroSearchPlayer,
@@ -25,6 +26,7 @@ engines = {"RandomPlayer": RandomPlayer,
            "MaterialPlayer": MaterialPlayer,
            "MCTSNaivePlayer": MCTSNaivePlayer,
            "MCTSPlayer": MCTSPlayer,
+           "MCTSNaivePlayerExe": MCTSNaivePlayerExe,
            }
 
 profile_path = None
