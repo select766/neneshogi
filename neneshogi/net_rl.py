@@ -30,7 +30,7 @@ class ResBlock(chainer.Chain):
 
 class ModelRL(chainer.Chain):
     # モデルの設定
-    def __init__(self, ch=16, depth=4, weight_move=1.0, weight_value=1.0):
+    def __init__(self, ch=16, depth=4, weight_move=1.0, weight_value=1.0, reinforce_baseline=0.5):
         chains = {}
         chains["conv_first"] = L.Convolution2D(None, ch, 5, pad=2, nobias=True)
         chains["bn_first"] = L.BatchNormalization(ch)
@@ -45,6 +45,7 @@ class ModelRL(chainer.Chain):
         self.depth = depth
         self.weight_move = weight_move
         self.weight_value = weight_value
+        self.reinforce_baseline = reinforce_baseline
 
     # モデルを呼び出す
     def forward(self, x: chainer.Variable) -> Tuple[chainer.Variable, chainer.Variable]:
@@ -65,10 +66,11 @@ class ModelRL(chainer.Chain):
 
     def __call__(self, x, move_index, move_array, legal_move_array, eval_score, game_result):
         pred_move, pred_value = self.forward(x)
+        pred_value_tanh = F.tanh(pred_value)
         # REINFORCE
         sce_move = F.softmax_cross_entropy(pred_move, move_index, reduce="no")  # log(選んだ指し手の確率)
-        loss_move = F.mean(sce_move * game_result)
-        loss_value = F.mean_squared_error(F.tanh(pred_value), game_result)
+        loss_move = F.mean(sce_move * (game_result - pred_value_tanh.data + self.reinforce_baseline))
+        loss_value = F.mean_squared_error(pred_value_tanh, game_result)
 
         loss_total = loss_move * self.weight_move + loss_value * self.weight_value
         accuracy = F.accuracy(pred_move, move_index)
