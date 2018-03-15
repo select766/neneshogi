@@ -72,7 +72,9 @@ class ZeroSearchPlayer(Engine):
             model_output_var_move, model_output_var_value = self.model.forward(dnn_input)
             model_output = chainer.cuda.to_cpu(model_output_var_move.data)  # type: np.ndarray
         # softmaxで確率とみなす（合法手の和=1）
-        mo_exp = np.exp((model_output.flatten() - np.max(model_output)) / self.softmax_temperature) * legal_move_mask.flatten()
+        model_output = model_output.ravel()
+        model_output[legal_move_mask.ravel() == 0.0] = -10000.0
+        mo_exp = np.exp((model_output.flatten() - np.max(model_output)) / self.softmax_temperature)
         model_output = mo_exp / np.sum(mo_exp)
         # 確率にしたがって手を選択
         move_index = np.random.choice(np.arange(len(model_output)), p=model_output)
