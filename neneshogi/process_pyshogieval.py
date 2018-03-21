@@ -16,8 +16,7 @@ from .train_config import load_model
 from . import util
 
 
-def run(seval: ShogiEval, model, gpu: int, softmax_temperature: float):
-    batch_size = 16
+def run(seval: ShogiEval, batch_size: int, model, gpu: int, softmax_temperature: float):
     dnn_input_batch = np.zeros((batch_size, 86, 9, 9), dtype=np.float32)
     dnn_move_and_index = np.zeros((batch_size, 600, 2), dtype=np.uint16)
     n_moves = np.zeros((batch_size,), dtype=np.uint16)
@@ -51,6 +50,7 @@ def run(seval: ShogiEval, model, gpu: int, softmax_temperature: float):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("model")
+    parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--softmax", type=float, default=1.0)
     args = parser.parse_args()
@@ -59,10 +59,12 @@ def main():
     if gpu >= 0:
         chainer.cuda.get_device_from_id(gpu).use()
         model.to_gpu()
-    seval = ShogiEval()
+    queue_size = 16
+    batch_size = args.batch_size
+    seval = ShogiEval(queue_size, batch_size)
     with chainer.using_config("train", False):
         with chainer.using_config("enable_backprop", False):
-            run(seval, model, gpu, args.softmax)
+            run(seval, batch_size, model, gpu, args.softmax)
 
 
 if __name__ == '__main__':
