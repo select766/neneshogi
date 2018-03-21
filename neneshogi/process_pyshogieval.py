@@ -16,7 +16,7 @@ from .train_config import load_model
 from . import util
 
 
-def run(seval: ShogiEval, batch_size: int, model, gpu: int, softmax_temperature: float):
+def run(seval: ShogiEval, batch_size: int, model, gpu: int, softmax_temperature: float, value_scale: float):
     dnn_input_batch = np.zeros((batch_size, 86, 9, 9), dtype=np.float32)
     dnn_move_and_index = np.zeros((batch_size, 600, 2), dtype=np.uint16)
     n_moves = np.zeros((batch_size,), dtype=np.uint16)
@@ -42,7 +42,7 @@ def run(seval: ShogiEval, batch_size: int, model, gpu: int, softmax_temperature:
                 move_probs_uint16 = (move_probs * 65535).astype(np.uint16)
                 move_and_prob[b, :n_moves_b, 0] = dnn_move_and_index_valid[:, 0]
                 move_and_prob[b, :n_moves_b, 1] = move_probs_uint16
-        static_value_int16 = (np.tanh(model_output_value) * 32000).astype(np.int16)
+        static_value_int16 = (np.tanh(model_output_value * value_scale) * 32000).astype(np.int16)
         print("sending back")
         seval.put(valid_batch_size, table, move_and_prob, n_moves, static_value_int16)
 
@@ -53,6 +53,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--softmax", type=float, default=1.0)
+    parser.add_argument("--value_scale", type=float, default=1.0)
     args = parser.parse_args()
     model = load_model(args.model)
     gpu = args.gpu
@@ -64,7 +65,7 @@ def main():
     seval = ShogiEval(queue_size, batch_size)
     with chainer.using_config("train", False):
         with chainer.using_config("enable_backprop", False):
-            run(seval, batch_size, model, gpu, args.softmax)
+            run(seval, batch_size, model, gpu, args.softmax, args.value_scale)
 
 
 if __name__ == '__main__':
