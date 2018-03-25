@@ -81,7 +81,10 @@ def load_trainer(path, gpu: int = -1) -> training.Trainer:
     weight_out_dir = os.path.join(path, "weight")
     trainer = training.Trainer(updater, (solver_yaml["epoch"], 'epoch'), weight_out_dir)
 
-    val_interval = 1, 'epoch'
+    if "val_interval_iteration" in solver_yaml:
+        val_interval = solver_yaml["val_interval_iteration"], "iteration"
+    else:
+        val_interval = 1, 'epoch'
     log_interval = 100, 'iteration'
 
     trainer.extend(extensions.Evaluator(val_iter, model, device=gpu),
