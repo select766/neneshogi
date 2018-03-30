@@ -36,7 +36,7 @@ def run(seval: ShogiEval, batch_size: int, model, gpu: int, softmax_temperature:
             n_moves_b = int(n_moves[b])
             if n_moves_b > 0:
                 dnn_move_and_index_valid = dnn_move_and_index[b, :n_moves_b, :]
-                target_move_scores = model_output_move[0][dnn_move_and_index_valid[:, 1]]
+                target_move_scores = model_output_move[b][dnn_move_and_index_valid[:, 1]]
                 ms_exp = np.exp((target_move_scores - np.max(target_move_scores)) / softmax_temperature)
                 move_probs = ms_exp / np.sum(ms_exp)
                 move_probs_uint16 = (move_probs * 65535).astype(np.uint16)
