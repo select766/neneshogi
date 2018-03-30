@@ -17,8 +17,8 @@ from . import util
 
 
 def run(seval: ShogiEval, batch_size: int, model, gpu: int, softmax_temperature: float, value_scale: float):
-    dnn_input_batch = np.zeros((batch_size, 86, 9, 9), dtype=np.float32)
-    dnn_move_and_index = np.zeros((batch_size, 600, 2), dtype=np.uint16)
+    dnn_input_batch = np.zeros((batch_size, ShogiEval.DNN_INPUT_CHANNEL, 9, 9), dtype=np.float32)
+    dnn_move_and_index = np.zeros((batch_size, ShogiEval.MOVE_SIZE, 2), dtype=np.uint16)
     n_moves = np.zeros((batch_size,), dtype=np.uint16)
     while True:
         print("waiting input")
@@ -31,7 +31,7 @@ def run(seval: ShogiEval, batch_size: int, model, gpu: int, softmax_temperature:
         model_output_var_move, model_output_var_value = model.forward(dnn_input_gpu)
         model_output_move = chainer.cuda.to_cpu(model_output_var_move.data)
         model_output_value = chainer.cuda.to_cpu(model_output_var_value.data)
-        move_and_prob = np.zeros((batch_size, 600, 2), dtype=np.uint16)
+        move_and_prob = np.zeros((batch_size, ShogiEval.MOVE_SIZE, 2), dtype=np.uint16)
         for b in range(valid_batch_size):
             n_moves_b = int(n_moves[b])
             if n_moves_b > 0:
