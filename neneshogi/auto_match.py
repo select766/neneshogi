@@ -12,7 +12,7 @@ import sys
 import argparse
 import subprocess
 import re
-from collections import OrderedDictgit 
+from collections import OrderedDict
 from typing import Dict, List
 import time
 import threading
