@@ -1,0 +1,7 @@
+model_code: net.py
+class: Model
+kwargs:
+  ch: 192
+  depth: 4
+  weight_move: 1.0
+  weight_value: 1.0
