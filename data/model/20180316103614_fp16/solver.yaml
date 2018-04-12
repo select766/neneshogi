@@ -1,0 +1,9 @@
+batchsize: 512
+epoch: 10
+id: '20180316103614'
+initmodel: data\model\20180315202120\weight\model_iter_390625
+optimizer: MomentumSGD
+optimizer_kwargs:
+  lr: 0.01
+  momentum: 0.9
+val_batchsize: 512
