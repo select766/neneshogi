@@ -61,7 +61,7 @@ def main():
     if gpu >= 0:
         chainer.cuda.get_device_from_id(gpu).use()
         model.to_gpu()
-    queue_size = 16
+    queue_size = 64
     batch_size = args.batch_size
     seval = ShogiEval(queue_size, batch_size, args.queue_prefix)
     with chainer.using_config("train", False):
