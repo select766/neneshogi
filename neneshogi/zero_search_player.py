@@ -71,6 +71,7 @@ class ZeroSearchPlayer(Engine):
                 dnn_input = chainer.cuda.to_gpu(dnn_input)
             model_output_var_move, model_output_var_value = self.model.forward(dnn_input)
             model_output = chainer.cuda.to_cpu(model_output_var_move.data)  # type: np.ndarray
+            model_output_value = chainer.cuda.to_cpu(model_output_var_value.data)
         # softmaxで確率とみなす（合法手の和=1）
         model_output = model_output.ravel()
         model_output[legal_move_mask.ravel() == 0.0] = -10000.0
@@ -80,6 +81,9 @@ class ZeroSearchPlayer(Engine):
         move_index = np.random.choice(np.arange(len(model_output)), p=model_output)
         move = self.dnn_converter.reverse_move_index(self.pos, move_index)
         usi_info_writer.write_string(f"{move.to_usi_string()}({int(model_output[move_index]*100)}%)")
+        # PV表示
+        score_cp = int(model_output_value * 300)
+        usi_info_writer.write_pv(pv=[move], depth=1, seldepth=1, time=1, nodes=1, score_cp=score_cp)
         return move
 
     @util.release_gpu_memory_pool
