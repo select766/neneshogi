@@ -65,12 +65,14 @@ class Engine:
 
     def write_line(self, line: str):
         self._log_file.write(f">{line}\n")
+        self._log_file.flush()
         self._proc.stdin.write(line + "\n")
         self._proc.stdin.flush()
 
     def read_line(self):
         line = self._proc.stdout.readline().rstrip()
         self._log_file.write(f"<{line}\n")
+        self._log_file.flush()
         if len(line) == 0:
             raise EOFError
         return line
