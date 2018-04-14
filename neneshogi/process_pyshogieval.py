@@ -20,6 +20,17 @@ def run(seval: ShogiEval, batch_size: int, model, gpu: int, softmax_temperature:
     dnn_input_batch = np.zeros((batch_size, ShogiEval.DNN_INPUT_CHANNEL, 9, 9), dtype=np.float32)
     dnn_move_and_index = np.zeros((batch_size, ShogiEval.MOVE_SIZE, 2), dtype=np.uint16)
     n_moves = np.zeros((batch_size,), dtype=np.uint16)
+    if True:
+        logger.info("warming up by dummy data")
+        if gpu >= 0:
+            dnn_input_gpu = chainer.cuda.to_gpu(dnn_input_batch)
+        else:
+            dnn_input_gpu = dnn_input_batch
+        model_output_var_move, model_output_var_value = model.forward(dnn_input_gpu)
+        model_output_move = chainer.cuda.to_cpu(model_output_var_move.data)
+        model_output_value = chainer.cuda.to_cpu(model_output_var_value.data)
+        logger.info("warming up done")
+
     while True:
         logger.info("waiting input")
         valid_batch_size, table = seval.get(dnn_input_batch, dnn_move_and_index, n_moves)
