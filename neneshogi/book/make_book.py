@@ -139,6 +139,8 @@ def do_work(work_dir: str, mincount: int) -> bool:
     logger.info("quitting engine")
     engine.quit()
 
+    time.sleep(10)  # 次回起動のエンジンがうまく動かないことがあるので少し待ってみる
+
     return True
 
 
