@@ -75,9 +75,12 @@ def main():
     queue_size = 64
     batch_size = args.batch_size
     seval = ShogiEval(queue_size, batch_size, args.queue_prefix)
-    with chainer.using_config("train", False):
-        with chainer.using_config("enable_backprop", False):
-            run(seval, batch_size, model, gpu, args.softmax, args.value_slope)
+    chainer.config.train = False
+    chainer.config.enable_backprop = False
+    chainer.config.use_cudnn = "always"
+    chainer.config.autotune = True
+    chainer.config.use_cudnn_tensor_core = "always"
+    run(seval, batch_size, model, gpu, args.softmax, args.value_slope)
 
 
 if __name__ == '__main__':
