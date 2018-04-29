@@ -30,6 +30,7 @@ def run(seval: ShogiEval, batch_size: int, model, gpu: int, softmax_temperature:
         model_output_move = chainer.cuda.to_cpu(model_output_var_move.data)
         model_output_value = chainer.cuda.to_cpu(model_output_var_value.data)
         logger.info("warming up done")
+    seval.increment_watcher_count()
 
     while True:
         logger.info("waiting input")
